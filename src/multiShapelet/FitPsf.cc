@@ -80,12 +80,12 @@ FitPsfModel::FitPsfModel(
     radiusRatio(ctrl.radiusRatio),
     failed(false)
 {
-    static double const NORMALIZATION = std::sqrt(afw::geom::PI);
+    static double const NORM2 = shapelet::NORMALIZATION * shapelet::NORMALIZATION;
     inner.deep() = 0.0;
     outer.deep() = 0.0;
     ellipse = afw::geom::ellipses::Axes(parameters[0], parameters[1], parameters[2]);
-    inner[0] = amplitude * NORMALIZATION;
-    outer[0] = amplitude * ctrl.amplitudeRatio * NORMALIZATION;
+    inner[0] = amplitude / NORM2;
+    outer[0] = amplitude * ctrl.amplitudeRatio / NORM2;
 }
 
 FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord const & source) :
