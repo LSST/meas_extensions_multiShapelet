@@ -15,6 +15,7 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 #include "lsst/afw/detection.h"
 #include "lsst/pex/logging.h"
 #include "lsst/meas/algorithms.h"
+#include "lsst/shapelet.h"
 #include "lsst/meas/extensions/multiShapelet.h"
 %}
 
@@ -37,6 +38,7 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %import "lsst/afw/geom/geomLib.i"
 %import "lsst/afw/geom/ellipses/ellipsesLib.i"
 %import "lsst/afw/detection/detectionLib.i"
+%import "lsst/shapelet/shapeletLib.i"
 %import "lsst/meas/algorithms/algorithmsLib.i"
 
 %declareNumPyConverters(ndarray::Array<double const,1,1>);

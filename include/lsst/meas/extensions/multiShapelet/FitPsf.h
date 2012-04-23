@@ -25,7 +25,7 @@
 
 #include "ndarray.h"
 
-#include "lsst/afw/math/shapelets.h"
+#include "lsst/shapelet.h"
 #include "lsst/afw/detection/Psf.h"
 #include "lsst/meas/algorithms/Algorithm.h"
 #include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
@@ -76,7 +76,7 @@ private:
  *  exactly a double-Gaussian).  The inner and outer components have the same basis
  *  ellipticity, but the ratio of their radii is not fixed.
  *
- *  See lsst::afw::math::shapelets for the precise definitions of the basis functions.
+ *  See lsst::shapelet for the precise definitions of the basis functions.
  */
 struct FitPsfModel {
 
@@ -107,7 +107,7 @@ struct FitPsfModel {
      *
      *  The elements will be [inner, outer].
      */
-    afw::math::shapelets::MultiShapeletFunction asMultiShapelet(
+    shapelet::MultiShapeletFunction asMultiShapelet(
         afw::geom::Point2D const & center = afw::geom::Point2D()
     ) const;
 

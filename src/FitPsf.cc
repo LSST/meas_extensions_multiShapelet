@@ -23,7 +23,7 @@
 
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
 #include "lsst/meas/extensions/multiShapelet/GaussianObjective.h"
-#include "lsst/afw/math/shapelets/ModelBuilder.h"
+#include "lsst/shapelet/ModelBuilder.h"
 #include "lsst/afw/math/LeastSquares.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
@@ -45,11 +45,11 @@ int computeOrder(int size2d) {
 template <typename PixelT>
 void fillMultiShapeletImage(
     ndarray::Array<PixelT,2,1> const & array, 
-    afw::math::shapelets::MultiShapeletFunction const & msf
+    shapelet::MultiShapeletFunction const & msf
 ) {
-    // TODO: could use afw::math::shapelets::ModelBuilder here; probably faster
+    // TODO: could use shapelet::ModelBuilder here; probably faster
     // (low priority because this function is mostly intended for testing purposes).
-    afw::math::shapelets::MultiShapeletFunctionEvaluator ev(msf);
+    shapelet::MultiShapeletFunctionEvaluator ev(msf);
     afw::geom::Point2D point;
     for (
         typename ndarray::Array<PixelT,2,1>::Iterator rowIter = array.begin();
@@ -74,8 +74,8 @@ FitPsfModel::FitPsfModel(
     double amplitude,
     ndarray::Array<double const,1,1> const & parameters
 ) :
-    inner(ndarray::allocate(afw::math::shapelets::computeSize(ctrl.innerOrder))),
-    outer(ndarray::allocate(afw::math::shapelets::computeSize(ctrl.outerOrder))),
+    inner(ndarray::allocate(shapelet::computeSize(ctrl.innerOrder))),
+    outer(ndarray::allocate(shapelet::computeSize(ctrl.outerOrder))),
     ellipse(),
     radiusRatio(ctrl.radiusRatio),
     failed(false)
@@ -89,8 +89,8 @@ FitPsfModel::FitPsfModel(
 }
 
 FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord const & source) :
-    inner(ndarray::allocate(afw::math::shapelets::computeSize(ctrl.innerOrder))),
-    outer(ndarray::allocate(afw::math::shapelets::computeSize(ctrl.outerOrder))),
+    inner(ndarray::allocate(shapelet::computeSize(ctrl.innerOrder))),
+    outer(ndarray::allocate(shapelet::computeSize(ctrl.outerOrder))),
     ellipse(),
     radiusRatio(ctrl.radiusRatio),
     failed(false)
@@ -103,41 +103,41 @@ FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord co
 }
   
 
-afw::math::shapelets::MultiShapeletFunction FitPsfModel::asMultiShapelet(
+shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
     afw::geom::Point2D const & center
 ) const {
-    afw::math::shapelets::MultiShapeletFunction::ElementList elements;
+    shapelet::MultiShapeletFunction::ElementList elements;
     afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
     // FIXME: should have data-type cast functionality in ndarray
-    ndarray::Array<afw::math::shapelets::Pixel,1,1> sInner(ndarray::allocate(inner.getSize<0>()));
-    ndarray::Array<afw::math::shapelets::Pixel,1,1> sOuter(ndarray::allocate(outer.getSize<0>()));
+    ndarray::Array<shapelet::Pixel,1,1> sInner(ndarray::allocate(inner.getSize<0>()));
+    ndarray::Array<shapelet::Pixel,1,1> sOuter(ndarray::allocate(outer.getSize<0>()));
     sInner.deep() = inner;
     sOuter.deep() = outer;
     elements.push_back(
-        afw::math::shapelets::ShapeletFunction(
+        shapelet::ShapeletFunction(
             computeOrder(inner.getSize<0>()),
-            afw::math::shapelets::HERMITE,
+            shapelet::HERMITE,
             fullEllipse,
             sInner
         )
     );
     fullEllipse.scale(radiusRatio);
     elements.push_back(
-        afw::math::shapelets::ShapeletFunction(
+        shapelet::ShapeletFunction(
             computeOrder(outer.getSize<0>()),
-            afw::math::shapelets::HERMITE,
+            shapelet::HERMITE,
             fullEllipse,
             sOuter
         )
     );
-    return afw::math::shapelets::MultiShapeletFunction(elements);
+    return shapelet::MultiShapeletFunction(elements);
 }
 
 template <typename PixelT>
 void FitPsfModel::evaluate(
     ndarray::Array<PixelT,2,1> const & array, afw::geom::Point2D const & center
 ) const {
-    afw::math::shapelets::MultiShapeletFunction msf = asMultiShapelet(center);
+    shapelet::MultiShapeletFunction msf = asMultiShapelet(center);
     fillMultiShapeletImage(array, msf);
 }
 
@@ -145,13 +145,13 @@ FitPsfAlgorithm::FitPsfAlgorithm(FitPsfControl const & ctrl, afw::table::Schema 
     algorithms::Algorithm(ctrl),
     _innerKey(schema.addField< afw::table::Array<float> >(
                   ctrl.name + ".inner",
-                  "Gauss-Hermite coefficients of the inner expansion (see afw::math::shapelets)",
-                  afw::math::shapelets::computeSize(ctrl.innerOrder)
+                  "Gauss-Hermite coefficients of the inner expansion (see shapelet)",
+                  shapelet::computeSize(ctrl.innerOrder)
               )),
     _outerKey(schema.addField< afw::table::Array<float> >(
                   ctrl.name + ".outer",
-                  "Gauss-Hermite coefficients of the outer expansion (see afw::math::shapelets)",
-                  afw::math::shapelets::computeSize(ctrl.outerOrder)
+                  "Gauss-Hermite coefficients of the outer expansion (see shapelet)",
+                  shapelet::computeSize(ctrl.outerOrder)
               )),
     _ellipseKey(schema.addField< afw::table::Moments<float> >(
                     ctrl.name + ".ellipse",
@@ -232,14 +232,14 @@ FitPsfModel FitPsfAlgorithm::apply(
     model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
     // Now, we free up all the amplitudes (including higher-order shapelet terms), and do a linear-only fit.
     afw::geom::Box2I bbox = image.getBBox(afw::image::PARENT);
-    int innerCoeffs = afw::math::shapelets::computeSize(ctrl.innerOrder);
-    int outerCoeffs = afw::math::shapelets::computeSize(ctrl.outerOrder);
+    int innerCoeffs = shapelet::computeSize(ctrl.innerOrder);
+    int outerCoeffs = shapelet::computeSize(ctrl.outerOrder);
     ndarray::Array<double,2,-2> matrix = ndarray::allocate(bbox.getArea(), innerCoeffs + outerCoeffs);
     afw::geom::ellipses::Ellipse innerEllipse(model.ellipse, center);
     afw::geom::ellipses::Ellipse outerEllipse(model.ellipse, center);
     outerEllipse.getCore().scale(ctrl.radiusRatio);
-    afw::math::shapelets::ModelBuilder innerShapelets(ctrl.innerOrder, innerEllipse, bbox);
-    afw::math::shapelets::ModelBuilder outerShapelets(ctrl.outerOrder, outerEllipse, bbox);
+    shapelet::ModelBuilder innerShapelets(ctrl.innerOrder, innerEllipse, bbox);
+    shapelet::ModelBuilder outerShapelets(ctrl.outerOrder, outerEllipse, bbox);
     matrix[ndarray::view()(0, innerCoeffs)] = innerShapelets.getModel();
     matrix[ndarray::view()(innerCoeffs, innerCoeffs + outerCoeffs)] = outerShapelets.getModel();
     ndarray::Array<double,1,1> data = ndarray::flatten<1>(ndarray::copy(image.getArray()));
