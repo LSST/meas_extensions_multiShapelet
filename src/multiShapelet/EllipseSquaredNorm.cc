@@ -30,7 +30,7 @@ afw::geom::ellipses::BaseCore::Jacobian EllipseSquaredNorm::update(
     bool computeJacobian
 ) {
     afw::geom::ellipses::Quadrupole q;
-    afw::geom::ellipses::BaseCore::Jacobian dQdE;
+    afw::geom::ellipses::BaseCore::Jacobian dQdE = afw::geom::ellipses::BaseCore::Jacobian::Zero();
     if (computeJacobian) {
         dQdE = q.dAssign(ellipse);
     } else {
@@ -50,12 +50,12 @@ afw::geom::ellipses::BaseCore::Jacobian EllipseSquaredNorm::update(
     _r12 = - _r11 * _r22 * l12;
     afw::geom::ellipses::BaseCore::Jacobian result;
     if (computeJacobian) {
-        double s = l11 * l22; // == sqrt(det(Q))
+        double s = l11 * l22; s *= s; // == det(Q)
         afw::geom::ellipses::BaseCore::Jacobian dRdQ;
         dRdQ << 
-                          -0.5*_r11/qxx,          0.0,              0.0,
-            -0.5*_r12*(1.0/qxx + qyy/s),  -_r22*qyy/s,   0.5*_r22*qxy/s,
-                         0.5*_r12*qxy/s,   _r22*qxy/s,  -0.5*_r22*qxx/s;
+                          -0.5*_r11/qxx,             0.0,           0.0,
+            -0.5*_r12*(1.0/qxx + qyy/s),  0.5*_r22*qxy/s,   -_r22*qyy/s,
+                         0.5*_r12*qxy/s, -0.5*_r22*qxx/s,    _r22*qxy/s;
         result = dRdQ * dQdE;
     } else {
         result.setConstant(std::numeric_limits<double>::quiet_NaN());

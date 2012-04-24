@@ -13,4 +13,5 @@ doc/*.tag
 doc/*.inc
 doc/doxygen.conf
 tests/.tests
+tests/testEllipseSquaredNorm
 version.py

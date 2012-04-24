@@ -20,8 +20,8 @@
  * the GNU General Public License along with this program.  If not, 
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
-#ifndef MULTISHAPELET_EllipseRadialFraction_h_INCLUDED
-#define MULTISHAPELET_EllipseRadialFraction_h_INCLUDED
+#ifndef MULTISHAPELET_EllipseSquaredNorm_h_INCLUDED
+#define MULTISHAPELET_EllipseSquaredNorm_h_INCLUDED
 
 #include "lsst/afw/geom/ellipses.h"
 
@@ -62,19 +62,19 @@ public:
         double & rx, double & ry,
         double & z
     ) const {
-        rx = x * _r11 + y * _r12;
-        ry = y * _r22;
+        rx = x * _r11;
+        ry = x * _r12 + y * _r22;
         z = rx * rx + ry * ry;
     }
     template <typename D1, typename D2, typename D3>
     void operator()(
-        Eigen::DenseBase<D1> const & x, Eigen::DenseBase<D1> const & y,
-        Eigen::DenseBase<D2> & rx, Eigen::DenseBase<D2> & ry,
-        Eigen::DenseBase<D3> & z
+        Eigen::MatrixBase<D1> const & x, Eigen::MatrixBase<D1> const & y,
+        Eigen::MatrixBase<D2> & rx, Eigen::MatrixBase<D2> & ry,
+        Eigen::MatrixBase<D3> & z
     ) const {
-        rx = x * _r11 + y * _r12;
-        ry = y * _r22;
-        z.array() = rx.array().squared() + ry.array().squared();
+        rx = x * _r11;
+        ry = x * _r12 + y * _r22;
+        z.array() = rx.array().square() + ry.array().square();
     }
     //@}
 
@@ -91,17 +91,17 @@ public:
         double const rx, double const ry,
         double & dz_dx, double & dz_dy
     ) const {
-        dz_dx = _r11 * rx;
-        dz_dy = _r12 * rx + _r22 * ry;
+        dz_dx = 2.0 * (_r11 * rx + _r12 * ry);
+        dz_dy = 2.0 * _r22 * ry;
     }
     template <typename D1, typename D2, typename D3>
     void dCoords(
-        Eigen::DenseBase<D1> const & x, Eigen::DenseBase<D1> const & y,
-        Eigen::DenseBase<D2> const & rx, Eigen::DenseBase<D2> const & ry,
-        Eigen::DenseBase<D3> & dz_dx, Eigen::DenseBase<D3> & dz_dy
+        Eigen::MatrixBase<D1> const & x, Eigen::MatrixBase<D1> const & y,
+        Eigen::MatrixBase<D2> const & rx, Eigen::MatrixBase<D2> const & ry,
+        Eigen::MatrixBase<D3> & dz_dx, Eigen::MatrixBase<D3> & dz_dy
     ) const {
-        dz_dx = _r11 * rx;
-        dz_dy = _r12 * rx + _r22 * ry;
+        dz_dx = (2.0 * _r11) * rx + (2.0 * _r12) * ry;
+        dz_dy = (2.0 * _r22) * ry;
     }
     //@}
 
@@ -125,28 +125,28 @@ public:
         double const x, double const y,          // scalar
         double & rx, double & ry,                // scalar
         Eigen::MatrixBase<D1> const & jacobian,  // 3xM elements
-        Eigen::MatrixBase<D2> & dz               // 1xM elements (row vector)
+        Eigen::MatrixBase<D2> & dz               // 1xM elements (row vector),
     ) const {
-        ry *= y;
-        dz += jacobian.row(2) * ry;
-        ry = rx * y;  // use ry as temporary for 2*rx*y 
-        dz += jacobian.row(1) * ry;
-        rx *= x;
-        dz += jacobian.row(0) * rx;
+        rx *= 2.0 * x;
+        dz += rx * jacobian.row(0);
+        rx = 2.0 * ry * x;  // use rx as temporary for 2*ry*x 
+        dz += rx * jacobian.row(1);
+        ry *= 2.0 * y;
+        dz += ry * jacobian.row(2);
     }
     template <typename D1, typename D2, typename D3, typename D4>
     void dEllipse(
-        Eigen::DenseBase<D1> const & x, Eigen::DenseBase<D1> const & y, // Nx1 elements (col vector)
-        Eigen::DenseBase<D2> & rx, Eigen::DenseBase<D2> & ry,           // Nx1 elements (col vector)
+        Eigen::MatrixBase<D1> const & x, Eigen::MatrixBase<D1> const & y, // Nx1 elements (col vector)
+        Eigen::MatrixBase<D2> & rx, Eigen::MatrixBase<D2> & ry,           // Nx1 elements (col vector)
         Eigen::MatrixBase<D3> const & jacobian,                         // 3xM elements
         Eigen::MatrixBase<D4> & dz                                      // NxM elements
     ) const {
-        ry.array() *= y.array();
-        dz += jacobian.row(2) * ry.matrix();
-        ry.array() = rx.array() * y.array();  // use ry as temporary for 2*rx*y 
-        dz += jacobian.row(1) * ry.matrix();
-        rx.array() *= x.array();
-        dz += jacobian.row(0) * rx.matrix();
+        rx.array() *= 2.0 * x.array();
+        dz += rx * jacobian.row(0);
+        rx.array() = 2.0 * ry.array() * x.array();  // use rx as temporary for 2*ry*x 
+        dz += rx * jacobian.row(1);
+        ry.array() *= 2.0 * y.array();
+        dz += ry * jacobian.row(2);
     }
     //@}
 
@@ -154,7 +154,7 @@ public:
      *  @brief Update the ellipse and optionally return the derivative of the internal representation
      *         wrt the ellipse parameters.
      *
-     *  The returned matrix can be passed directly as the 'jacobian' arugment of dEllipse() to compute
+     *  The returned matrix can be passed directly as the 'jacobian' argument of dEllipse() to compute
      *  the derivative wrt the ellipse parameters, or it can be multiplied on the right by another matrix
      *  to compute the derivative wrt some function of the ellipse parameters.
      */
@@ -173,6 +173,6 @@ private:
 };
 
 
-}}}} // namespace lsst::meas::extensions::multisShapelet
+}}}} // namespace lsst::meas::extensions::multiShapelet
 
-#endif // !MULTISHAPELET_EllipseRadialFraction_h_INCLUDED
+#endif // !MULTISHAPELET_EllipseSquaredNorm_h_INCLUDED
