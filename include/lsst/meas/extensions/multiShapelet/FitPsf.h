@@ -240,6 +240,6 @@ inline PTR(FitPsfAlgorithm) FitPsfControl::makeAlgorithm(
     return boost::static_pointer_cast<FitPsfAlgorithm>(_makeAlgorithm(schema, metadata));
 }
 
-}}}} // namespace lsst::meas::extensions::multisShapelet
+}}}} // namespace lsst::meas::extensions::multiShapelet
 
 #endif // !MULTISHAPELET_FitPsf_h_INCLUDED

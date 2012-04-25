@@ -196,6 +196,6 @@ private:
     PTR(Impl) _impl;
 };
 
-}}}} // namespace lsst::meas::extensions::multisShapelet
+}}}} // namespace lsst::meas::extensions::multiShapelet
 
 #endif // !MULTISHAPELET_HybridOptimizer_h_INCLUDED

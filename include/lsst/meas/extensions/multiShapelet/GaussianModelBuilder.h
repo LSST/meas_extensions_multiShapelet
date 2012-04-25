@@ -76,6 +76,6 @@ private:
 };
 
 
-}}}} // namespace lsst::meas::extensions::multisShapelet
+}}}} // namespace lsst::meas::extensions::multiShapelet
 
 #endif // !MULTISHAPELET_GaussianModelBuilder_h_INCLUDED

@@ -89,6 +89,6 @@ private:
     ndarray::Array<double const,1,1> _weights;
 };
 
-}}}} // namespace lsst::meas::extensions::multisShapelet
+}}}} // namespace lsst::meas::extensions::multiShapelet
 
 #endif // !MULTISHAPELET_GaussianObjective_h_INCLUDED
