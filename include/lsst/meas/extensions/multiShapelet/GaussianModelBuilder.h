@@ -27,6 +27,8 @@
 #include "lsst/afw/geom/ellipses.h"
 #include "lsst/afw/detection/Footprint.h"
 
+#include "lsst/meas/extensions/multiShapelet/EllipseSquaredNorm.h"
+
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
 class GaussianModelBuilder {
@@ -40,43 +42,37 @@ public:
 
     GaussianModelBuilder & operator=(GaussianModelBuilder const & other);
 
-    int getSize() const { return _xy.rows(); }
+    int getSize() const { return _x.size(); }
 
-    ndarray::Array<double const,1,1> computeModel(
-        afw::geom::ellipses::Ellipse const & ellipse
-    );
+    void update(afw::geom::ellipses::BaseCore const & core);
+
+    void update(afw::geom::Point2D const & center);
+
+    void update(afw::geom::ellipses::Ellipse const & ellipse);
+
+    ndarray::Array<double const,1,1> computeModel();
 
     ndarray::Array<double const,1,1> getModel() const { return _model; }
 
     void computeDerivative(
         ndarray::Array<double,2,-1> const & output,
-        afw::geom::ellipses::Ellipse const & ellipse,
-        bool reuseModel = false
-    );
-
-    void computeDerivative(
-        ndarray::Array<double,2,-1> const & output,
-        afw::geom::ellipses::Ellipse const & ellipse,
         Eigen::Matrix<double,5,Eigen::Dynamic> const & jacobian,
-        bool add = false,
-        bool reuseModel = false
+        bool add = false
     );
 
     void setOutput(ndarray::Array<double,1,1> const & array);
 
 private:
 
-    void _computeDerivative(
-        ndarray::Array<double,2,-1> const & output,
-        afw::geom::ellipses::Ellipse const & ellipse,
-        Eigen::Matrix<double,6,Eigen::Dynamic> const & jacobian,
-        bool add = false,
-        bool reuseModel = false
-    );
-
+    EllipseSquaredNorm _esn;
+    Eigen::Matrix<double,3,3> _esnJacobian;
+    Eigen::VectorXd _x;
+    Eigen::VectorXd _y;
+    Eigen::VectorXd _tx;
+    Eigen::VectorXd _ty;
+    Eigen::VectorXd _rx;
+    Eigen::VectorXd _ry;
     ndarray::Array<double,1,1> _model;
-    Eigen::Matrix<double,Eigen::Dynamic,2> _xy;
-    Eigen::Matrix<double,Eigen::Dynamic,2> _xyt;
 };
 
 

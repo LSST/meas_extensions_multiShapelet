@@ -83,7 +83,7 @@ FitPsfModel::FitPsfModel(
     static double const NORM2 = shapelet::NORMALIZATION * shapelet::NORMALIZATION;
     inner.deep() = 0.0;
     outer.deep() = 0.0;
-    ellipse = afw::geom::ellipses::Axes(parameters[0], parameters[1], parameters[2]);
+    ellipse = GaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2]);
     inner[0] = amplitude / NORM2;
     outer[0] = amplitude * ctrl.amplitudeRatio / NORM2;
 }
@@ -186,8 +186,8 @@ HybridOptimizer FitPsfAlgorithm::makeOptimizer(
     HybridOptimizerControl optCtrl; // TODO: nest this in FitPsfControl
     optCtrl.useCholesky = false;
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
-    afw::geom::ellipses::Axes axes(ctrl.initialRadius, ctrl.initialRadius, 0.0);
-    axes.writeParameters(initial.getData());
+    GaussianObjective::EllipseCore ellipse(0.0, 0.0, ctrl.initialRadius);
+    ellipse.writeParameters(initial.getData());
     return HybridOptimizer(obj, initial, optCtrl);
 }
 

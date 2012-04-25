@@ -29,13 +29,14 @@ void GaussianObjective::computeFunction(
     ndarray::Array<double const,1,1> const & parameters, 
     ndarray::Array<double,1,1> const & function
 ) {
-    _ellipse.getCore().readParameters(parameters.getData());
+    _ellipse.readParameters(parameters.getData());
     ndarray::EigenView<double,1,1> model(_model);
     model.setZero();
     for (std::size_t n = 0; n < _builders.size(); ++n) {
-        _ellipse.getCore().scale(_components[n].radius);
-        model += _components[n].amplitude * _builders[n].computeModel(_ellipse).asEigen();
-        _ellipse.getCore().scale(1.0 / _components[n].radius);
+        _ellipse.scale(_components[n].radius);
+        _builders[n].update(_ellipse);
+        model += _components[n].amplitude * _builders[n].computeModel().asEigen();
+        _ellipse.scale(1.0 / _components[n].radius);
     }
     if (!_weights.isEmpty()) {
         model.array() *= _weights.asEigen<Eigen::ArrayXpr>();
@@ -55,10 +56,10 @@ void GaussianObjective::computeDerivative(
     jacobian.setZero();
     for (std::size_t n = 0; n < _builders.size(); ++n) {
         afw::geom::LinearTransform scaling = afw::geom::LinearTransform::makeScaling(_components[n].radius);
-        jacobian.block<3,3>(0, 0) = _ellipse.getCore().transform(scaling).d() * _components[n].amplitude;
-        _ellipse.getCore().scale(_components[n].radius);
-        _builders[n].computeDerivative(derivative, _ellipse, jacobian, true, false);
-        _ellipse.getCore().scale(1.0 /_components[n].radius);
+        jacobian.block<3,3>(0, 0) = _ellipse.transform(scaling).d() * _components[n].amplitude;
+        _ellipse.scale(_components[n].radius);
+        _builders[n].computeDerivative(derivative, jacobian, true);
+        _ellipse.scale(1.0 /_components[n].radius);
     }
     if (!_weights.isEmpty()) {
         derivative.asEigen<Eigen::ArrayXpr>() 
@@ -80,11 +81,11 @@ GaussianObjective::GaussianObjective(
     ndarray::Array<double const,1,1> const & data,
     ndarray::Array<double const,1,1> const & weights
 ) : Objective(region.getArea(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
-    _ellipse(afw::geom::ellipses::Axes(), center),
+    _ellipse(),
     _components(components), _builders(components.size(), GaussianModelBuilder(region)), 
     _model(ndarray::allocate(region.getArea())), _data(data), _weights(weights)
 {
-    _initialize();
+    _initialize(center);
 }
 
 GaussianObjective::GaussianObjective(
@@ -93,14 +94,14 @@ GaussianObjective::GaussianObjective(
     ndarray::Array<double const,1,1> const & data,
     ndarray::Array<double const,1,1> const & weights
 ) : Objective(bbox.getArea(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
-    _ellipse(afw::geom::ellipses::Axes(), center),
+    _ellipse(),
     _components(components), _builders(components.size(), GaussianModelBuilder(bbox)),
     _model(ndarray::allocate(bbox.getArea())), _data(data), _weights(weights)
 {
-    _initialize();
+    _initialize(center);
 }
 
-void GaussianObjective::_initialize() {
+void GaussianObjective::_initialize(afw::geom::Point2D const & center) {
     assert(getFunctionSize() == _data.getSize<0>());
     assert(_weights.isEmpty() || getFunctionSize() == _weights.getSize<0>());
     if (!_weights.isEmpty()) {
@@ -109,6 +110,9 @@ void GaussianObjective::_initialize() {
         _data = wd.shallow();
     }
     _model.deep() = 0.0;
+    for (BuilderList::iterator i = _builders.begin(); i != _builders.end(); ++i) {
+        i->update(center);
+    }
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

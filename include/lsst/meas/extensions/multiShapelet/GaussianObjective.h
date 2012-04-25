@@ -31,6 +31,8 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 class GaussianObjective : public Objective {
 public:
 
+    typedef afw::geom::ellipses::SeparableConformalShearTraceRadius EllipseCore;
+
     virtual void computeFunction(
         ndarray::Array<double const,1,1> const & parameters, 
         ndarray::Array<double,1,1> const & function
@@ -75,11 +77,11 @@ private:
 
     typedef std::vector<GaussianModelBuilder> BuilderList;
 
-    void _initialize();
+    void _initialize(afw::geom::Point2D const & center);
 
     double _amplitude;
     double _modelSquaredNorm;
-    afw::geom::ellipses::Ellipse _ellipse;
+    EllipseCore _ellipse;
     ComponentList _components;
     BuilderList _builders;
     ndarray::Array<double,1,1> _model;
