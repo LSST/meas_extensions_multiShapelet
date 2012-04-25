@@ -184,7 +184,9 @@ HybridOptimizer FitPsfAlgorithm::makeOptimizer(
 ) {
     PTR(Objective) obj = makeObjective(ctrl, image, center);
     HybridOptimizerControl optCtrl; // TODO: nest this in FitPsfControl
-    optCtrl.useCholesky = false;
+    optCtrl.tau = 1E-6;
+    optCtrl.useCholesky = true;
+    optCtrl.gTol = 1E-6;
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
     GaussianObjective::EllipseCore ellipse(0.0, 0.0, ctrl.initialRadius);
     ellipse.writeParameters(initial.getData());
