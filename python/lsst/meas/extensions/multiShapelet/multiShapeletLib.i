@@ -55,6 +55,22 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %shared_ptr(lsst::meas::extensions::multiShapelet::GaussianObjective);
 %include "lsst/meas/extensions/multiShapelet/GaussianObjective.h"
 
+namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
+
+%extend Objective {
+%pythoncode %{
+    def cast(self, type): return type._cast(self)
+%}
+}
+
+%extend GaussianObjective {
+    static PTR(GaussianObjective) _cast(PTR(Objective) const & input) {
+        return boost::dynamic_pointer_cast<lsst::meas::extensions::multiShapelet::GaussianObjective>(input);
+    }
+}
+
+}}}} // namespace lsst::meas::extensions::multiShapelet
+
 %shared_ptr(lsst::meas::extensions::multiShapelet::FitPsfControl);
 %shared_ptr(lsst::meas::extensions::multiShapelet::FitPsfAlgorithm);
 %include "lsst/meas/extensions/multiShapelet/FitPsf.h"

@@ -8,6 +8,7 @@ class FitPsfViewer(object):
     class Iteration(object):
 
         def __init__(self, opt, viewer):
+            obj = opt.getObjective().cast(ms.GaussianObjective)
             self.state = opt.getState()
             if self.state & ms.HybridOptimizer.STEP_ACCEPTED:
                 self.parameters = opt.getParameters().copy()
@@ -15,17 +16,20 @@ class FitPsfViewer(object):
             else:
                 self.parameters = opt.getTrialParameters().copy()
                 self.chisq = opt.getTrialChiSq()
+            self.fNorm = opt.getFunctionInfNorm()
+            self.gNorm = opt.getGradientInfNorm()
+            self.amplitude = obj.getAmplitude()
             self.method = opt.getMethod()
-            self.model = ms.FitPsfModel(viewer.ctrl, self.parameters)
+            self.model = ms.FitPsfModel(viewer.ctrl, self.amplitude, self.parameters)
             self.image = lsst.afw.image.ImageD(viewer.image.getBBox(lsst.afw.image.PARENT))
             self.model.evaluate(self.image, viewer.center)
             self.residuals = lsst.afw.image.ImageD(viewer.image, True)
             self.residuals -= self.image
 
         def __str__(self):
-            return "state=%0x, chisq=%f, method=%s, parameters=%s" % (
-                self.state, self.chisq, "LM" if self.method==ms.HybridOptimizer.LM else "BFGS",
-                self.parameters
+            return "state=0x%1.2x, method=%s, chisq=%f, fNorm=%g, gNorm=%g, amplitude=%s, parameters=%s" % (
+                self.state, "LM" if self.method==ms.HybridOptimizer.LM else "BFGS",
+                self.chisq, self.fNorm, self.gNorm, self.amplitude, self.parameters
                 )
 
         __repr__ = __str__
