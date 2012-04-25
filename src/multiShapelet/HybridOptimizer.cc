@@ -151,7 +151,6 @@ void HybridOptimizer::Impl::step() {
     double normH = h.norm();
     if (!checkStep(normH, FAILURE_MINSTEP)) return;
     if (method == BFGS && normH > delta) h *= delta / normH;
-    std::cerr << "Step:" << h.transpose() << "\n";
     xNew = x + h;
     fNew.setZero();
     obj->computeFunction(xNew.shallow(), fNew.shallow());
