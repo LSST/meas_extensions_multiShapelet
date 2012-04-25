@@ -21,10 +21,6 @@ class FitPsfViewer(object):
             self.amplitude = obj.getAmplitude()
             self.method = opt.getMethod()
             self.model = ms.FitPsfModel(viewer.ctrl, self.amplitude, self.parameters)
-            self.image = lsst.afw.image.ImageD(viewer.image.getBBox(lsst.afw.image.PARENT))
-            self.model.evaluate(self.image, viewer.center)
-            self.residuals = lsst.afw.image.ImageD(viewer.image, True)
-            self.residuals -= self.image
 
         def __str__(self):
             return "state=0x%1.2x, method=%s, chisq=%f, fNorm=%g, gNorm=%g, amplitude=%s, parameters=%s" % (
@@ -38,10 +34,10 @@ class FitPsfViewer(object):
         if ctrl is None:
             ctrl = ms.FitPsfControl()
         self.ctrl = ctrl
-        self.saved = ms.FitPsfModel(ctrl, source)
+        self.saved = ms.FitPsfModel(self.ctrl, source)
         self.center = source.getCentroid()
         self.image = psf.computeImage(self.center)
-        opt = ms.FitPsfAlgorithm.makeOptimizer(ctrl, self.image, self.center)
+        opt = ms.FitPsfAlgorithm.makeOptimizer(self.ctrl, self.image, self.center)
         maxIter = opt.getControl().maxIter
         self.iterations = [self.Iteration(opt, self)]
         for self.iterCount in range(maxIter):
@@ -49,23 +45,45 @@ class FitPsfViewer(object):
             self.iterations.append(self.Iteration(opt, self))
             if opt.getState() & ms.HybridOptimizer.FINISHED:
                 break
+        self.model = ms.FitPsfModel(self.iterations[-1].model)
+        ms.FitPsfAlgorithm.fitShapeletTerms(self.ctrl, self.image, self.center, self.model)
 
     @staticmethod
-    def _plotImage(image):
+    def _plotImage(image, title=None, ellipses=()):
         bbox = image.getBBox(lsst.afw.image.PARENT)
         array = image.getArray()
         pyplot.imshow(array, interpolation='nearest', origin='lower',
                       extent=(bbox.getMinX()-0.5, bbox.getMaxX()+0.5, bbox.getMinY()-0.5, bbox.getMaxY()+0.5)
                       )
+        if title is not None:
+            pyplot.title(title)
+        for ellipse in ellipses:
+            ellipse.plot(fill=False, rescale=False)
         ticks = [array.min(), 0.5 * (array.min() + array.max()), array.max()]
-        pyplot.colorbar(orientation="horizontal", format="%.2g", ticks=ticks)        
+        pyplot.colorbar(orientation="horizontal", format="%.2g", ticks=ticks)
 
-    def plot(self, n):
+    def plot(self, model=None):
+        if model is None:
+            model = self.model
+        elif model == "saved":
+            model = self.saved
+        elif not isinstance(model, ms.FitPsfModel):
+            model = self.iterations[model].model
+        image = lsst.afw.image.ImageD(self.image.getBBox(lsst.afw.image.PARENT))
+        model.evaluate(image, self.center)
+        residuals = lsst.afw.image.ImageD(self.image, True)
+        residuals -= image
+        outerEllipse = lsst.afw.geom.ellipses.Quadrupole(model.ellipse)
+        outerEllipse.scale(model.radiusRatio)
+        ellipses = [
+            lsst.afw.geom.ellipses.Ellipse(model.ellipse, self.center),
+            lsst.afw.geom.ellipses.Ellipse(outerEllipse, self.center),
+            ]
         pyplot.clf()
         pyplot.subplot(1,3,1)
-        self._plotImage(self.image)
+        self._plotImage(self.image, title="PCA reconstruction", ellipses=ellipses)
         pyplot.subplot(1,3,2)
-        self._plotImage(self.iterations[n].image)
+        self._plotImage(image, title="shapelet fit", ellipses=ellipses)
         pyplot.subplot(1,3,3)
-        self._plotImage(self.iterations[n].residuals)
+        self._plotImage(residuals, title="PCA-shapelets", ellipses=ellipses)
 

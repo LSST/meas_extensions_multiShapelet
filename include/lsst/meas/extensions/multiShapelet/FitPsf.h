@@ -102,6 +102,12 @@ struct FitPsfModel {
     /// @brief Construct by extracting saved values from a SourceRecord.
     FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord const & source);
 
+    /// @brief Deep copy constructor.
+    FitPsfModel(FitPsfModel const & other);
+
+    /// @brief Deep assignment operator.
+    FitPsfModel & operator=(FitPsfModel const & other);
+
     /**
      *  @brief Return a MultiShapeletFunction representation of the model.
      *
@@ -160,6 +166,19 @@ public:
         FitPsfControl const & ctrl,
         afw::image::Image<double> const & image,
         afw::geom::Point2D const & center
+    );
+
+    /**
+     *  @brief Given a double-Gaussian-only model, fit additional shapelet terms.
+     *
+     *  This is provided primarily for testing and debugging purposes; it is the second
+     *  part of apply(), after the nonlinear double-Gaussian fit.
+     */
+    static void fitShapeletTerms(
+        FitPsfControl const & ctrl,
+        afw::image::Image<double> const & image,
+        afw::geom::Point2D const & center,
+        FitPsfModel & model
     );
 
     /**
