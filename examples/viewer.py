@@ -8,7 +8,7 @@ class FitPsfViewer(object):
     class Iteration(object):
 
         def __init__(self, opt, viewer):
-            obj = opt.getObjective().cast(ms.GaussianObjective)
+            obj = opt.getObjective().cast(ms.MultiGaussianObjective)
             self.state = opt.getState()
             if self.state & ms.HybridOptimizer.STEP_ACCEPTED:
                 self.parameters = opt.getParameters().copy()

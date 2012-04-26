@@ -20,8 +20,8 @@
  * the GNU General Public License along with this program.  If not, 
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
-#ifndef MULTISHAPELET_GaussianObjective_h_INCLUDED
-#define MULTISHAPELET_GaussianObjective_h_INCLUDED
+#ifndef MULTISHAPELET_MultiGaussianObjective_h_INCLUDED
+#define MULTISHAPELET_MultiGaussianObjective_h_INCLUDED
 
 #include "lsst/meas/extensions/multiShapelet/MultiGaussian.h"
 #include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
@@ -29,7 +29,7 @@
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
-class GaussianObjective : public Objective {
+class MultiGaussianObjective : public Objective {
 public:
 
     typedef afw::geom::ellipses::SeparableConformalShearTraceRadius EllipseCore;
@@ -49,14 +49,14 @@ public:
     
 #ifndef SWIG // Don't need to create this class from Python, just use it.
 
-    GaussianObjective(
+    MultiGaussianObjective(
         MultiGaussianList const & components, afw::geom::Point2D const & center,
         afw::detection::Footprint const & region,
         ndarray::Array<double const,1,1> const & data,
         ndarray::Array<double const,1,1> const & weights = ndarray::Array<double,1,1>()
     );
 
-    GaussianObjective(
+    MultiGaussianObjective(
         MultiGaussianList const & components, afw::geom::Point2D const & center,
         afw::geom::Box2I const & bbox,
         ndarray::Array<double const,1,1> const & data,
@@ -83,4 +83,4 @@ private:
 
 }}}} // namespace lsst::meas::extensions::multiShapelet
 
-#endif // !MULTISHAPELET_GaussianObjective_h_INCLUDED
+#endif // !MULTISHAPELET_MultiGaussianObjective_h_INCLUDED

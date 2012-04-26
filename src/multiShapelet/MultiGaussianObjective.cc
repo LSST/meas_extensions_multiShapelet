@@ -21,11 +21,11 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
-#include "lsst/meas/extensions/multiShapelet/GaussianObjective.h"
+#include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
-void GaussianObjective::computeFunction(
+void MultiGaussianObjective::computeFunction(
     ndarray::Array<double const,1,1> const & parameters, 
     ndarray::Array<double,1,1> const & function
 ) {
@@ -46,7 +46,7 @@ void GaussianObjective::computeFunction(
     function.asEigen() = _amplitude * model - _data.asEigen();
 }
 
-void GaussianObjective::computeDerivative(
+void MultiGaussianObjective::computeDerivative(
     ndarray::Array<double const,1,1> const & parameters, 
     ndarray::Array<double const,1,1> const & function,
     ndarray::Array<double,2,-2> const & derivative
@@ -75,7 +75,7 @@ void GaussianObjective::computeDerivative(
     derivative.asEigen() += _model.asEigen() * dAmplitude.transpose();
 }
 
-GaussianObjective::GaussianObjective(
+MultiGaussianObjective::MultiGaussianObjective(
     MultiGaussianList const & components, afw::geom::Point2D const & center,
     afw::detection::Footprint const & region,
     ndarray::Array<double const,1,1> const & data,
@@ -88,7 +88,7 @@ GaussianObjective::GaussianObjective(
     _initialize(center);
 }
 
-GaussianObjective::GaussianObjective(
+MultiGaussianObjective::MultiGaussianObjective(
     MultiGaussianList const & components, afw::geom::Point2D const & center,
     afw::geom::Box2I const & bbox,
     ndarray::Array<double const,1,1> const & data,
@@ -101,7 +101,7 @@ GaussianObjective::GaussianObjective(
     _initialize(center);
 }
 
-void GaussianObjective::_initialize(afw::geom::Point2D const & center) {
+void MultiGaussianObjective::_initialize(afw::geom::Point2D const & center) {
     assert(getFunctionSize() == _data.getSize<0>());
     assert(_weights.isEmpty() || getFunctionSize() == _weights.getSize<0>());
     if (!_weights.isEmpty()) {

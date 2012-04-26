@@ -34,7 +34,7 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 
 class FitPsfAlgorithm;
 
-class GaussianObjective;
+class MultiGaussianObjective;
 
 class FitPsfControl : public algorithms::AlgorithmControl {
 public:
@@ -149,7 +149,7 @@ public:
      *
      *  This is provided primarily for testing and debugging purposes.
      */
-    static PTR(GaussianObjective) makeObjective(
+    static PTR(MultiGaussianObjective) makeObjective(
         FitPsfControl const & ctrl,
         afw::image::Image<double> const & image,
         afw::geom::Point2D const & center

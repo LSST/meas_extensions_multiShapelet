@@ -25,7 +25,7 @@
 
 #include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 #include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
-#include "lsst/meas/extensions/multiShapelet/GaussianObjective.h"
+#include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
 
 #endif // !MULTISHAPELET_multiShapelet_h_INCLUDED

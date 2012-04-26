@@ -22,7 +22,7 @@
  */
 
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
-#include "lsst/meas/extensions/multiShapelet/GaussianObjective.h"
+#include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 #include "lsst/shapelet/ModelBuilder.h"
 #include "lsst/afw/math/LeastSquares.h"
 
@@ -83,7 +83,7 @@ FitPsfModel::FitPsfModel(
     static double const NORM2 = shapelet::NORMALIZATION * shapelet::NORMALIZATION;
     inner.deep() = 0.0;
     outer.deep() = 0.0;
-    ellipse = GaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2]);
+    ellipse = MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2]);
     inner[0] = amplitude / NORM2;
     outer[0] = amplitude * ctrl.amplitudeRatio / NORM2;
 }
@@ -195,7 +195,7 @@ FitPsfAlgorithm::FitPsfAlgorithm(FitPsfControl const & ctrl, afw::table::Schema 
              ))
 {}
 
-PTR(GaussianObjective) FitPsfAlgorithm::makeObjective(
+PTR(MultiGaussianObjective) FitPsfAlgorithm::makeObjective(
     FitPsfControl const & ctrl,
     afw::image::Image<double> const & image,
     afw::geom::Point2D const & center
@@ -203,7 +203,7 @@ PTR(GaussianObjective) FitPsfAlgorithm::makeObjective(
     MultiGaussianList components;
     components.push_back(MultiGaussianComponent(1.0, 1.0));
     components.push_back(MultiGaussianComponent(ctrl.amplitudeRatio, ctrl.radiusRatio));
-    return boost::make_shared<GaussianObjective>(
+    return boost::make_shared<MultiGaussianObjective>(
         components, center, image.getBBox(afw::image::PARENT),
         ndarray::flatten<1>(ndarray::copy(image.getArray()))
     );
@@ -220,7 +220,7 @@ HybridOptimizer FitPsfAlgorithm::makeOptimizer(
     optCtrl.useCholesky = true;
     optCtrl.gTol = 1E-6;
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
-    GaussianObjective::EllipseCore ellipse(0.0, 0.0, ctrl.initialRadius);
+    MultiGaussianObjective::EllipseCore ellipse(0.0, 0.0, ctrl.initialRadius);
     ellipse.writeParameters(initial.getData());
     return HybridOptimizer(obj, initial, optCtrl);
 }
@@ -282,7 +282,7 @@ FitPsfModel FitPsfAlgorithm::apply(
     opt.run();
     Model model(
         ctrl, 
-        boost::static_pointer_cast<GaussianObjective const>(opt.getObjective())->getAmplitude(),
+        boost::static_pointer_cast<MultiGaussianObjective const>(opt.getObjective())->getAmplitude(),
         opt.getParameters()
     );
     model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
