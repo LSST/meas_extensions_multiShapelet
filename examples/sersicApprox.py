@@ -60,7 +60,6 @@ tractorExponential = TractorMultiGaussian(
     variance = numpy.array([4.91509189e-05, 7.91283025e-04, 5.06909854e-03, 2.30018199e-02,
                             8.50523831e-02, 2.73398885e-01, 7.93675135e-01, 2.17065603e+00]),
 )
-#tractorExponential.sigma /= EXP_HALF_LIGHT_RADIUS # want radius parameter to be half-light radius
 
 tractorDeVaucouleur = TractorMultiGaussian(
     amplitude = numpy.array([1.36305372e-02, 1.08889599e-01, 3.68235229e-01, 9.26647361e-01,
@@ -98,6 +97,15 @@ def plotFull(exact, sdss, tractor, yMax):
     plotSingle(x2, tractor, "b", "tractor", "s", 125)
     pyplot.ylim(0, yMax)
     pyplot.legend()
+
+def saveTractorProfiles(filename):
+    d = {
+        "tractor-devaucouleur": (tractorDeVaucouleur.amplitude,  tractorDeVaucouleur.sigma),
+        "tractor-exponential": (tractorExponential.amplitude, tractorExponential.sigma),
+        }
+    import cPickle
+    with open(filename, 'w') as f:
+        cPickle.dump(d, f, protocol=2)
 
 def main():
     plotFull(exactExponential, sdssExponential, tractorExponential, yMax=12)

@@ -41,6 +41,7 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %import "lsst/shapelet/shapeletLib.i"
 %import "lsst/meas/algorithms/algorithmsLib.i"
 
+%declareNumPyConverters(ndarray::Array<double const,1>);
 %declareNumPyConverters(ndarray::Array<double const,1,1>);
 %declareNumPyConverters(ndarray::Array<double,1,1>);
 %declareNumPyConverters(ndarray::Array<double,2,-1>);
@@ -51,6 +52,8 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 
 %shared_ptr(lsst::meas::extensions::multiShapelet::Objective);
 %include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
+
+%include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
 
 %shared_ptr(lsst::meas::extensions::multiShapelet::MultiGaussianObjective);
 %include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"

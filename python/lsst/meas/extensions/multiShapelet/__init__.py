@@ -10,4 +10,17 @@ class HybridOptimizerConfig(lsst.pex.config.Config):
 
 lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.psf", FitPsfControl)
 
-del lsst # cleanup namespace
+def loadProfiles():
+    import os
+    import cPickle
+    root = os.environ["MEAS_EXTENSIONS_MULTISHAPELET_DIR"]
+    for filename in ("tractor.p",):
+        with open(os.path.join(root, "data", filename), "r") as f:
+            d = cPickle.load(f)
+            for k, v in d.iteritems():
+                MultiGaussianRegistry.insert(k, *v)
+loadProfiles()
+
+# cleanup namespace
+del loadProfiles
+del lsst
