@@ -1,7 +1,20 @@
 #!/usr/bin/env python
 
 import numpy
+import scipy.special
 from matplotlib import pyplot
+
+class ExactSersic(object):
+
+    def __init__(self, n):
+        self.n = n
+        self.kappa = scipy.special.gammaincinv(2.0 * n, 0.5)
+
+    def __call__(self, r):
+        return numpy.exp(-self.kappa * (r**(1.0 / self.n) - 1.0))
+
+exactDeVaucouleur = ExactSersic(4.0)
+exactExponential = ExactSersic(1.0)
 
 def sdssDeVaucouleur(r):
     """Truncated/softened de Vaucouleur - copied from SDSS"""
@@ -30,16 +43,16 @@ def sdssExponential(r):
     return p
 
 # Special values below from Dustin Lang and David Hogg.
-        
+
 class TractorMultiGaussian(object):
 
     def __init__(self, amplitude, variance):
         self.sigma = variance**0.5
-        # Tractor uses integrated amplitude of each component, we use peak value.
+        # Tractor uses integrated amplitude of each component, but I use peak value here.
         self.amplitude = amplitude / (2.0 * numpy.pi * self.sigma**2)
 
     def __call__(self, r):
-        return (numpy.exp(-0.5 * (numpy.divide.outer(r, self.sigma))) * self.amplitude).sum(axis=1)
+        return (numpy.exp(-0.5 * (numpy.divide.outer(r, self.sigma))**2) * self.amplitude).sum(axis=1)
 
 tractorExponential = TractorMultiGaussian(
     amplitude = numpy.array([3.31636565e-05, 1.06478564e-03, 1.33260624e-02, 1.06217866e-01,
@@ -47,6 +60,7 @@ tractorExponential = TractorMultiGaussian(
     variance = numpy.array([4.91509189e-05, 7.91283025e-04, 5.06909854e-03, 2.30018199e-02,
                             8.50523831e-02, 2.73398885e-01, 7.93675135e-01, 2.17065603e+00]),
 )
+#tractorExponential.sigma /= EXP_HALF_LIGHT_RADIUS # want radius parameter to be half-light radius
 
 tractorDeVaucouleur = TractorMultiGaussian(
     amplitude = numpy.array([1.36305372e-02, 1.08889599e-01, 3.68235229e-01, 9.26647361e-01,
@@ -55,3 +69,40 @@ tractorDeVaucouleur = TractorMultiGaussian(
                             2.87959626e-02, 1.25118904e-01, 6.38235086e-01, 4.76437813e+00]),
 )
 
+def integral(x, profile):
+    dx = x[1] - x[0]
+    z = profile(x) * x * 2.0 * numpy.pi * dx
+    return numpy.cumsum(z)
+
+def plotSingle(x, profile, color, label, marker, stride):
+    y = profile(x)
+    #z = integral(x, profile)
+    pyplot.plot(x, y, color, alpha=0.75)
+    pyplot.plot(x[::stride], y[::stride], color + marker, alpha=0.5, markeredgewidth=0, label=label)
+    #pyplot.plot(x, z, color, alpha=0.75)
+    #pyplot.plot(x[::stride], z[::stride], color + marker, alpha=0.5, markeredgewidth=0)
+
+def plotFull(exact, sdss, tractor, yMax):
+    x1 = numpy.linspace(0.0, 10.0, 1001)
+    x2 = numpy.linspace(0.0, 2.0, 1001)
+    pyplot.figure()
+    pyplot.subplot(2, 1, 1)
+    plotSingle(x1, exact, "r", "exact", "o", 50)
+    plotSingle(x1, sdss, "g", "sdss", "^", 50)
+    plotSingle(x1, tractor, "b", "tractor", "s", 50)
+    pyplot.ylim(1E-5, 1E2)
+    pyplot.semilogy()
+    pyplot.subplot(2, 1, 2)
+    plotSingle(x2, exact, "r", "exact", "o", 125)
+    plotSingle(x2, sdss, "g", "sdss", "^", 125)
+    plotSingle(x2, tractor, "b", "tractor", "s", 125)
+    pyplot.ylim(0, yMax)
+    pyplot.legend()
+
+def main():
+    plotFull(exactExponential, sdssExponential, tractorExponential, yMax=12)
+    plotFull(exactDeVaucouleur, sdssDeVaucouleur, tractorDeVaucouleur, yMax=100)
+    pyplot.show()
+
+if __name__ == "__main__":
+    main()
