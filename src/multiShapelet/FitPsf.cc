@@ -200,9 +200,9 @@ PTR(GaussianObjective) FitPsfAlgorithm::makeObjective(
     afw::image::Image<double> const & image,
     afw::geom::Point2D const & center
 ) {
-    GaussianObjective::ComponentList components;
-    components.push_back(GaussianObjective::Component(1.0, 1.0));
-    components.push_back(GaussianObjective::Component(ctrl.amplitudeRatio, ctrl.radiusRatio));
+    MultiGaussianList components;
+    components.push_back(MultiGaussianComponent(1.0, 1.0));
+    components.push_back(MultiGaussianComponent(ctrl.amplitudeRatio, ctrl.radiusRatio));
     return boost::make_shared<GaussianObjective>(
         components, center, image.getBBox(afw::image::PARENT),
         ndarray::flatten<1>(ndarray::copy(image.getArray()))

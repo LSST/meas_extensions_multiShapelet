@@ -23,6 +23,7 @@
 #ifndef MULTISHAPELET_GaussianObjective_h_INCLUDED
 #define MULTISHAPELET_GaussianObjective_h_INCLUDED
 
+#include "lsst/meas/extensions/multiShapelet/MultiGaussian.h"
 #include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
 #include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 
@@ -48,24 +49,15 @@ public:
     
 #ifndef SWIG // Don't need to create this class from Python, just use it.
 
-    struct Component {
-        double amplitude;
-        double radius;
-
-        explicit Component(double amplitude_, double radius_) : amplitude(amplitude_), radius(radius_) {}
-    };
-
-    typedef std::vector<Component> ComponentList;
-
     GaussianObjective(
-        ComponentList const & components, afw::geom::Point2D const & center,
+        MultiGaussianList const & components, afw::geom::Point2D const & center,
         afw::detection::Footprint const & region,
         ndarray::Array<double const,1,1> const & data,
         ndarray::Array<double const,1,1> const & weights = ndarray::Array<double,1,1>()
     );
 
     GaussianObjective(
-        ComponentList const & components, afw::geom::Point2D const & center,
+        MultiGaussianList const & components, afw::geom::Point2D const & center,
         afw::geom::Box2I const & bbox,
         ndarray::Array<double const,1,1> const & data,
         ndarray::Array<double const,1,1> const & weights = ndarray::Array<double,1,1>()
@@ -82,7 +74,7 @@ private:
     double _amplitude;
     double _modelSquaredNorm;
     EllipseCore _ellipse;
-    ComponentList _components;
+    MultiGaussianList _components;
     BuilderList _builders;
     ndarray::Array<double,1,1> _model;
     ndarray::Array<double const,1,1> _data;

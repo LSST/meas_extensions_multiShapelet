@@ -76,7 +76,7 @@ void GaussianObjective::computeDerivative(
 }
 
 GaussianObjective::GaussianObjective(
-    ComponentList const & components, afw::geom::Point2D const & center,
+    MultiGaussianList const & components, afw::geom::Point2D const & center,
     afw::detection::Footprint const & region,
     ndarray::Array<double const,1,1> const & data,
     ndarray::Array<double const,1,1> const & weights
@@ -89,7 +89,7 @@ GaussianObjective::GaussianObjective(
 }
 
 GaussianObjective::GaussianObjective(
-    ComponentList const & components, afw::geom::Point2D const & center,
+    MultiGaussianList const & components, afw::geom::Point2D const & center,
     afw::geom::Box2I const & bbox,
     ndarray::Array<double const,1,1> const & data,
     ndarray::Array<double const,1,1> const & weights
