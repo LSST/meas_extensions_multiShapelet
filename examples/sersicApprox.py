@@ -52,7 +52,10 @@ class TractorMultiGaussian(object):
         self.amplitude = amplitude / (2.0 * numpy.pi * self.sigma**2)
 
     def __call__(self, r):
-        return (numpy.exp(-0.5 * (numpy.divide.outer(r, self.sigma))**2) * self.amplitude).sum(axis=1)
+        return self.decompose(r).sum(axis=1)
+
+    def decompose(self, r):
+        return numpy.exp(-0.5 * (numpy.divide.outer(r, self.sigma))**2) * self.amplitude
 
 tractorExponential = TractorMultiGaussian(
     amplitude = numpy.array([3.31636565e-05, 1.06478564e-03, 1.33260624e-02, 1.06217866e-01,
@@ -75,28 +78,44 @@ def integral(x, profile):
 
 def plotSingle(x, profile, color, label, marker, stride):
     y = profile(x)
-    #z = integral(x, profile)
+    z = integral(x, profile)
     pyplot.plot(x, y, color, alpha=0.75)
     pyplot.plot(x[::stride], y[::stride], color + marker, alpha=0.5, markeredgewidth=0, label=label)
-    #pyplot.plot(x, z, color, alpha=0.75)
-    #pyplot.plot(x[::stride], z[::stride], color + marker, alpha=0.5, markeredgewidth=0)
+    pyplot.plot(x, z, color + ":", alpha=0.75)
 
-def plotFull(exact, sdss, tractor, yMax):
+def plotFull(exact, sdss, tractor, yMaxLog, yMaxLinear):
+    def plotFrame(x, stride):
+        plotSingle(x, exact, "r", "exact", "o", stride)
+        plotSingle(x, sdss, "g", "sdss", "^", stride)
+        plotSingle(x, tractor, "b", "tractor", "s", stride)
+        gaussians = tractor.decompose(x)
+        for n in range(gaussians.shape[1]):
+            pyplot.plot(x, gaussians[:,n], "b", alpha=0.35)
+        
     x1 = numpy.linspace(0.0, 10.0, 1001)
     x2 = numpy.linspace(0.0, 2.0, 1001)
     pyplot.figure()
-    pyplot.subplot(2, 1, 1)
-    plotSingle(x1, exact, "r", "exact", "o", 50)
-    plotSingle(x1, sdss, "g", "sdss", "^", 50)
-    plotSingle(x1, tractor, "b", "tractor", "s", 50)
-    pyplot.ylim(1E-5, 1E2)
+    # Large radii, log
+    pyplot.subplot(2, 2, 1)
+    plotFrame(x1, 50)
+    pyplot.ylim(1E-5, yMaxLog)
     pyplot.semilogy()
-    pyplot.subplot(2, 1, 2)
-    plotSingle(x2, exact, "r", "exact", "o", 125)
-    plotSingle(x2, sdss, "g", "sdss", "^", 125)
-    plotSingle(x2, tractor, "b", "tractor", "s", 125)
-    pyplot.ylim(0, yMax)
+    # Small radii, log
+    pyplot.subplot(2, 2, 2)
+    plotFrame(x2, 125)
+    pyplot.ylim(1E-5, yMaxLog)
+    pyplot.semilogy()
+    # Large radii, linear
+    pyplot.subplot(2, 2, 3)
+    plotFrame(x1, 50)
+    # Do legend here, because this plot has the most empty space
+    pyplot.plot([0, 0], [0, -2], 'k:', alpha=0.75, label="enclosed flux") # invisible dummy line for legend
     pyplot.legend()
+    pyplot.ylim(0, yMaxLinear)
+    # Small radii, linear
+    pyplot.subplot(2, 2, 4)
+    plotFrame(x2, 125)
+    pyplot.ylim(0, yMaxLinear)
 
 def saveTractorProfiles(filename):
     d = {
@@ -108,8 +127,8 @@ def saveTractorProfiles(filename):
         cPickle.dump(d, f, protocol=2)
 
 def main():
-    plotFull(exactExponential, sdssExponential, tractorExponential, yMax=12)
-    plotFull(exactDeVaucouleur, sdssDeVaucouleur, tractorDeVaucouleur, yMax=100)
+    plotFull(exactExponential, sdssExponential, tractorExponential, yMaxLog=1E2, yMaxLinear=6)
+    plotFull(exactDeVaucouleur, sdssDeVaucouleur, tractorDeVaucouleur, yMaxLog=1E3, yMaxLinear=80)
     pyplot.show()
 
 if __name__ == "__main__":
