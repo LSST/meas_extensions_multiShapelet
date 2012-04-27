@@ -58,7 +58,7 @@ public:
     
     FitPsfControl() : 
         algorithms::AlgorithmControl("multishapelet.psf", 2.0), 
-        innerOrder(5), outerOrder(5), radiusRatio(2.0), amplitudeRatio(0.1), initialRadius(1.5)
+        innerOrder(6), outerOrder(6), radiusRatio(2.0), amplitudeRatio(0.1), initialRadius(1.5)
     {}
 
 private:
@@ -116,17 +116,6 @@ struct FitPsfModel {
     shapelet::MultiShapeletFunction asMultiShapelet(
         afw::geom::Point2D const & center = afw::geom::Point2D()
     ) const;
-
-    template <typename PixelT>
-    void evaluate(ndarray::Array<PixelT,2,1> const & array, afw::geom::Point2D const & center) const;
-
-    template <typename PixelT>
-    void evaluate(afw::image::Image<PixelT> & image, afw::geom::Point2D const & center) const {
-        evaluate(
-            image.getArray(),
-            afw::geom::Point2D(center.getX() - image.getX0(), center.getY() - image.getY0())
-        );
-    }
 
 };
 

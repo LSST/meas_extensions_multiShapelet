@@ -42,31 +42,6 @@ int computeOrder(int size2d) {
     );
 }
 
-template <typename PixelT>
-void fillMultiShapeletImage(
-    ndarray::Array<PixelT,2,1> const & array, 
-    shapelet::MultiShapeletFunction const & msf
-) {
-    // TODO: could use shapelet::ModelBuilder here; probably faster
-    // (low priority because this function is mostly intended for testing purposes).
-    shapelet::MultiShapeletFunctionEvaluator ev(msf);
-    afw::geom::Point2D point;
-    for (
-        typename ndarray::Array<PixelT,2,1>::Iterator rowIter = array.begin();
-        rowIter != array.end();
-        ++rowIter, point.setY(point.getY() + 1.0) // FIXME: overload Point::getY to return reference
-    ) {
-        for (
-            typename ndarray::Array<PixelT,2,1>::Reference::Iterator pixIter = rowIter->begin();
-            pixIter != rowIter->end();
-            ++pixIter, point.setX(point.getX() + 1.0) // FIXME: overload Point::getX to return reference
-        ) {
-            *pixIter = ev(point);
-        }
-        point.setX(0.0);
-    }
-}
-
 } // anonymous
 
 FitPsfModel::FitPsfModel(
@@ -163,14 +138,6 @@ shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
         )
     );
     return shapelet::MultiShapeletFunction(elements);
-}
-
-template <typename PixelT>
-void FitPsfModel::evaluate(
-    ndarray::Array<PixelT,2,1> const & array, afw::geom::Point2D const & center
-) const {
-    shapelet::MultiShapeletFunction msf = asMultiShapelet(center);
-    fillMultiShapeletImage(array, msf);
 }
 
 FitPsfAlgorithm::FitPsfAlgorithm(FitPsfControl const & ctrl, afw::table::Schema & schema) :
@@ -302,12 +269,6 @@ PTR(algorithms::Algorithm) FitPsfControl::_makeAlgorithm(
 }
 
 LSST_MEAS_ALGORITHM_PRIVATE_IMPLEMENTATION(FitPsfAlgorithm);
-
-template
-void FitPsfModel::evaluate(ndarray::Array<float,2,1> const & array, afw::geom::Point2D const & center) const;
-
-template
-void FitPsfModel::evaluate(ndarray::Array<double,2,1> const & array, afw::geom::Point2D const & center) const;
 
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

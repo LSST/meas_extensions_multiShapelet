@@ -70,7 +70,8 @@ class FitPsfViewer(object):
         elif not isinstance(model, ms.FitPsfModel):
             model = self.iterations[model].model
         image = lsst.afw.image.ImageD(self.image.getBBox(lsst.afw.image.PARENT))
-        model.evaluate(image, self.center)
+        func = model.asMultiShapelet(self.center)
+        func.evaluate().addToImage(image)
         residuals = lsst.afw.image.ImageD(self.image, True)
         residuals -= image
         outerEllipse = lsst.afw.geom.ellipses.Quadrupole(model.ellipse)
@@ -81,9 +82,9 @@ class FitPsfViewer(object):
             ]
         pyplot.clf()
         pyplot.subplot(1,3,1)
-        self._plotImage(self.image, title="PCA reconstruction", ellipses=ellipses)
+        self._plotImage(self.image, title="original PSF model image", ellipses=ellipses)
         pyplot.subplot(1,3,2)
         self._plotImage(image, title="shapelet fit", ellipses=ellipses)
         pyplot.subplot(1,3,3)
-        self._plotImage(residuals, title="PCA-shapelets", ellipses=ellipses)
+        self._plotImage(residuals, title="original-shapelets", ellipses=ellipses)
 
