@@ -198,13 +198,13 @@ void FitPsfAlgorithm::_apply(
     afw::image::Exposure<PixelT> const & exposure,
     afw::geom::Point2D const & center
 ) const {
+    source.set(_flagKey, true);
     if (!exposure.hasPsf()) {
         throw LSST_EXCEPT(
             pex::exceptions::LogicErrorException,
             "Cannot run FitPsfAlgorithm without a PSF."
         );
     }
-    source.set(_flagKey, true);
     FitPsfModel model = apply(getControl(), *exposure.getPsf(), center);
     source[_innerKey] = model.inner;
     source[_outerKey] = model.outer;
