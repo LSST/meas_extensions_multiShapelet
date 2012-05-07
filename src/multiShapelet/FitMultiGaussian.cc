@@ -42,7 +42,7 @@ FitMultiGaussianModel::FitMultiGaussianModel(
 {}
 
 FitMultiGaussianModel::FitMultiGaussianModel(
-    FitControl const & ctrl, afw::table::SourceRecord const & source
+    FitMultiGaussianControl const & ctrl, afw::table::SourceRecord const & source
 ) :
     profile(ctrl.profile), amplitude(1.0), ellipse(), failed(false)
 {
@@ -50,7 +50,7 @@ FitMultiGaussianModel::FitMultiGaussianModel(
     afw::table::SubSchema sPsf = source.getSchema()[ctrl.psfName];
     ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
     failed = source.get(s.find<afw::table::Flag>("flux.flags").key);
-    amplitude = source.get(s.find<afw::table::Flux::MeasTag>("flux"));
+    amplitude = source.get(s.find<afw::table::Flux::MeasTag>("flux").key);
     amplitude /= (ellipse.getArea() / afw::geom::PI);
     amplitude /= MultiGaussianComponent::integrate(MultiGaussianRegistry::lookup(profile));
     // TODO: PSF/aperture flux correction
@@ -84,10 +84,10 @@ shapelet::MultiShapeletFunction FitMultiGaussianModel::asMultiShapelet(
             shapelet::ShapeletFunction(
                 0,
                 shapelet::HERMITE,
-                fullEllipse,
-                i->amplitude * NORM2
+                fullEllipse
             )
         );
+        elements.back().getCoefficients()[0] = i->amplitude * NORM2;
     }
     return shapelet::MultiShapeletFunction(elements);
 }
@@ -97,7 +97,7 @@ FitMultiGaussianAlgorithm::FitMultiGaussianAlgorithm(
     afw::table::Schema & schema
 ) :
     algorithms::Algorithm(ctrl),
-    _fluxKeys(afw::table::addFluxFields(schema, ctrl + ".flux", "multi-Gaussian model flux")),
+    _fluxKeys(afw::table::addFluxFields(schema, ctrl.name + ".flux", "multi-Gaussian model flux")),
     _ellipseKey(schema.addField< afw::table::Moments<float> >(
                     ctrl.name + ".ellipse",
                     "half-light radius ellipse"
@@ -105,7 +105,7 @@ FitMultiGaussianAlgorithm::FitMultiGaussianAlgorithm(
 {}
 
 template <typename PixelT>
-ndarray::Array<double,1,1> FitMultiGaussianAlgorithm::processInputs(
+ndarray::Array<double,2,2> FitMultiGaussianAlgorithm::processInputs(
     afw::detection::Footprint & footprint,
     afw::image::MaskedImage<PixelT> const & image,
     bool usePixelWeights, afw::image::MaskPixel badPixelMask, int growFootprint
@@ -123,28 +123,29 @@ ndarray::Array<double,1,1> FitMultiGaussianAlgorithm::processInputs(
     return result;
 }
 
+template <typename PixelT>
 PTR(MultiGaussianObjective) FitMultiGaussianAlgorithm::makeObjective(
     FitMultiGaussianControl const & ctrl,
     FitPsfModel const & psfModel,
     afw::geom::ellipses::Quadrupole const & shape,
     afw::detection::Footprint const & footprint,
-    afw::image::MaskedImage<double> const & image,
+    afw::image::MaskedImage<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
-    PTR(afw::detection::Footprint) grown = afw::detection::growFootprint(footprint, ctrl.growFootprint);
-    ndarray::Array<double,1,1> data = afw::detection::flattenArray(
-        footprint, image.getImage()->getArray(), image.getXY0()
-    );
+    // TODO
     return boost::make_shared<MultiGaussianObjective>(
         MultiGaussianRegistry::lookup(ctrl.profile), center,
         footprint,
         ndarray::flatten<1>(ndarray::copy(image.getArray()))
     );
 }
-
-HybridOptimizer FitPsfAlgorithm::makeOptimizer(
+template <typename PixelT>
+HybridOptimizer FitMultiGaussianAlgorithm::makeOptimizer(
     FitPsfControl const & ctrl,
-    afw::image::Image<double> const & image,
+    FitPsfModel const & psfModel,
+    afw::geom::ellipses::Quadrupole const & shape,
+    afw::detection::Footprint const & footprint,
+    afw::image::MaskedImage<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
     PTR(Objective) obj = makeObjective(ctrl, image, center);
@@ -159,55 +160,44 @@ HybridOptimizer FitPsfAlgorithm::makeOptimizer(
 }
 
 template <typename PixelT>
-void FitPsfAlgorithm::_apply(
+void FitMultiGaussianAlgorithm::fitShapeletTerms(
+    FitMultiGaussianControl const & ctrl,
+    FitPsfModel const & psfModel,
+    afw::detection::Footprint const & footprint,
+    afw::image::MaskedImage<PixelT> const & image,
+    afw::geom::Point2D const & center,
+    FitMultiGaussianModel & model
+) {
+    // TODO
+}
+
+template <typename PixelT>
+void FitMultiGaussianAlgorithm::_apply(
     afw::table::SourceRecord & source,
     afw::image::Exposure<PixelT> const & exposure,
     afw::geom::Point2D const & center
 ) const {
+    source.set(_fluxKeys.err, true);
     if (!exposure.hasPsf()) {
         throw LSST_EXCEPT(
             pex::exceptions::LogicErrorException,
-            "Cannot run FitPsfAlgorithm without a PSF."
+            "Cannot run FitMultiGaussianAlgorithm without a PSF."
         );
     }
-    source.set(_flagKey, true);
-    FitPsfModel model = apply(getControl(), *exposure.getPsf(), center);
-    source[_innerKey] = model.inner;
-    source[_outerKey] = model.outer;
-    source.set(_ellipseKey, model.ellipse);
-    source.set(_flagKey, model.failed);
+    // TODO
 }
 
-void FitPsfAlgorithm::fitShapeletTerms(
-    FitPsfControl const & ctrl,
-    afw::image::Image<double> const & image,
-    afw::geom::Point2D const & center,
-    FitPsfModel & model
-) {
-    afw::geom::Box2I bbox = image.getBBox(afw::image::PARENT);
-    int innerCoeffs = shapelet::computeSize(ctrl.innerOrder);
-    int outerCoeffs = shapelet::computeSize(ctrl.outerOrder);
-    ndarray::Array<double,2,-2> matrix = ndarray::allocate(bbox.getArea(), innerCoeffs + outerCoeffs);
-    afw::geom::ellipses::Ellipse innerEllipse(model.ellipse, center);
-    afw::geom::ellipses::Ellipse outerEllipse(model.ellipse, center);
-    outerEllipse.getCore().scale(ctrl.radiusRatio);
-    shapelet::ModelBuilder innerShapelets(ctrl.innerOrder, innerEllipse, bbox);
-    shapelet::ModelBuilder outerShapelets(ctrl.outerOrder, outerEllipse, bbox);
-    matrix[ndarray::view()(0, innerCoeffs)] = innerShapelets.getModel();
-    matrix[ndarray::view()(innerCoeffs, innerCoeffs + outerCoeffs)] = outerShapelets.getModel();
-    ndarray::Array<double,1,1> data = ndarray::flatten<1>(ndarray::copy(image.getArray()));
-    afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, data);
-    model.inner.deep() = lstsq.getSolution()[ndarray::view(0, innerCoeffs)];
-    model.outer.deep() = lstsq.getSolution()[ndarray::view(innerCoeffs, innerCoeffs + outerCoeffs)];
-}
-
-FitPsfModel FitPsfAlgorithm::apply(
-    FitPsfControl const & ctrl,
-    afw::image::Image<double> const & image,
+template <typename PixelT>
+FitMultiGaussianModel FitMultiGaussianAlgorithm::apply(
+    FitMultiGaussianControl const & ctrl,
+    FitPsfModel const & psfModel,
+    afw::geom::ellipses::Quadrupole const & shape,
+    afw::detection::Footprint const & footprint,
+    afw::image::MaskedImage<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
-    // First, we fit an elliptical double-Gaussian with fixed radius and amplitude ratios;
-    // the free parameters are the amplitude and ellipse core of the inner component.
+    // First, we fit using just an elliptical double-Gaussian for the PSF, then we do a linear
+    // fit with the full shapelet PSF later.
     // We intentionally separate these steps into public functions so we can reproduce
     // the same results with a pure-Python implementation that lets us visualize what's
     // going on.
@@ -223,18 +213,17 @@ FitPsfModel FitPsfAlgorithm::apply(
     return model;
 }
 
-PTR(algorithms::AlgorithmControl) FitPsfControl::_clone() const {
-    return boost::make_shared<FitPsfControl>(*this);
+PTR(algorithms::AlgorithmControl) FitMultiGaussianControl::_clone() const {
+    return boost::make_shared<FitMultiGaussianControl>(*this);
 }
 
-PTR(algorithms::Algorithm) FitPsfControl::_makeAlgorithm(
+PTR(algorithms::Algorithm) FitMultiGaussianControl::_makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata
 ) const {
-    return boost::make_shared<FitPsfAlgorithm>(*this, boost::ref(schema));
+    return boost::make_shared<FitMultiGaussianAlgorithm>(*this, boost::ref(schema));
 }
 
-LSST_MEAS_ALGORITHM_PRIVATE_IMPLEMENTATION(FitPsfAlgorithm);
-
+LSST_MEAS_ALGORITHM_PRIVATE_IMPLEMENTATION(FitMultiGaussianAlgorithm);
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

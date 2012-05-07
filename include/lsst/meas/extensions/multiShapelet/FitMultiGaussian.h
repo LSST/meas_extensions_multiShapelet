@@ -34,21 +34,21 @@ class MultiGaussianObjective;
 class FitMultiGaussianControl : public algorithms::AlgorithmControl {
 public:
 
-    LSST_CONTROL_FIELD("profile", std::string, "Name of a registered multi-Gaussian profile.");
-    LSST_CONTROL_FIELD("psfName", std::string, "Root name of the FitPsfAlgorithm fields.");
-    LSST_CONTROL_FIELD("useShapeletPsfTerms", bool,
+    LSST_CONTROL_FIELD(profile, std::string, "Name of a registered multi-Gaussian profile.");
+    LSST_CONTROL_FIELD(psfName, std::string, "Root name of the FitPsfAlgorithm fields.");
+    LSST_CONTROL_FIELD(useShapeletPsfTerms, bool,
                        "If true, use the full double-shapelet PSF model; if false, use double-Gaussian.");
-    LSST_CONTROL_FIELD("deconvolveShape", bool,
+    LSST_CONTROL_FIELD(deconvolveShape, bool,
                        "Attempt to approximately deconvolve the canonical shape before "
                        "using it to set the initial parameters.");
-    LSST_CONTROL_FIELD("initialRadiusFactor", double,
+    LSST_CONTROL_FIELD(initialRadiusFactor, double,
                        "How to scale the initial ellipse from whatever the canonical shape "
                        "measures to the radius defined by the profile (usually half-light radius");
-    LSST_CONTROL_FIELD("usePixelWeights", bool, 
+    LSST_CONTROL_FIELD(usePixelWeights, bool, 
                        "If true, individually weigh pixels using the variance image.");
-    LSST_CONTROL_FIELD("badMaskPlanes", std::vector<std::string>,
+    LSST_CONTROL_FIELD(badMaskPlanes, std::vector<std::string>,
                        "Mask planes that indicate pixels that should be ignored in the fit.");
-    LSST_CONTROL_FIELD("growFootprint", int, 
+    LSST_CONTROL_FIELD(growFootprint, int, 
                        "Number of pixels to grow the footprint by.");
 
     PTR(FitMultiGaussianControl) clone() const {
@@ -89,7 +89,7 @@ private:
  */
 struct FitMultiGaussianModel {
 
-    std::string profile,
+    std::string profile;
     double amplitude;
     afw::geom::ellipses::Quadrupole ellipse;
     bool failed;  ///< set to true if the measurement failed
@@ -136,7 +136,7 @@ public:
     static ndarray::Array<double,2,2> processInputs(
         afw::detection::Footprint & footprint,
         afw::image::MaskedImage<PixelT> const & image,
-        bool usePixelWeights, int badPixelMask, int growFootprint
+        bool usePixelWeights, afw::image::MaskPixel badPixelMask, int growFootprint
     );
 
     /**
@@ -202,7 +202,9 @@ public:
      *  @param[in] psfModel       Localized double-shapelet PSF model.
      *  @param[in] shape          Shape measurement used to set initial ellipse parameters
      *                            (interpreted as defined by ctrl data members).
-     *  @param[in] image          Postage-stamp image of the PSF.
+     *  @param[in] footprint      Region of the image to fit (after modification according to
+     *                            ctrl parameters).
+     *  @param[in] image          Full masked image to fit.
      *  @param[in] center         Center of the object in the image's PARENT coordinate system
      *                            (i.e. xy0 is used).
      */
@@ -227,7 +229,7 @@ private:
 
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitMultiGaussianAlgorithm);
 
-    afw::table::KeyTuple<afw::table::flux> _fluxKeys;
+    afw::table::KeyTuple<afw::table::Flux> _fluxKeys;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
 };
 
