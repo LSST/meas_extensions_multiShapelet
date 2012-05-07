@@ -35,7 +35,21 @@ class FitMultiGaussianControl : public algorithms::AlgorithmControl {
 public:
 
     LSST_CONTROL_FIELD("profile", std::string, "Name of a registered multi-Gaussian profile.");
-
+    LSST_CONTROL_FIELD("psfName", std::string, "Root name of the FitPsfAlgorithm fields.");
+    LSST_CONTROL_FIELD("useShapeletPsfTerms", bool,
+                       "If true, use the full double-shapelet PSF model; if false, use double-Gaussian.");
+    LSST_CONTROL_FIELD("deconvolveShape", bool,
+                       "Attempt to approximately deconvolve the canonical shape before "
+                       "using it to set the initial parameters.");
+    LSST_CONTROL_FIELD("initialRadiusFactor", double,
+                       "How to scale the initial ellipse from whatever the canonical shape "
+                       "measures to the radius defined by the profile (usually half-light radius");
+    LSST_CONTROL_FIELD("usePixelWeights", bool, 
+                       "If true, individually weigh pixels using the variance image.");
+    LSST_CONTROL_FIELD("badMaskPlanes", std::vector<std::string>,
+                       "Mask planes that indicate pixels that should be ignored in the fit.");
+    LSST_CONTROL_FIELD("growFootprint", int, 
+                       "Number of pixels to grow the footprint by.");
 
     PTR(FitMultiGaussianControl) clone() const {
         return boost::static_pointer_cast<FitMultiGaussianControl>(_clone());
@@ -48,8 +62,15 @@ public:
     
     FitMultiGaussianControl() : 
         algorithms::AlgorithmControl("multishapelet.exp", 2.5), 
-        profile("tractor-exponential")
-    {}
+        profile("tractor-exponential"), psfName("multishapelet.psf"),
+        useShapeletPsfTerms(true), deconvolveShape(true), initialRadiusFactor(1.0),
+        usePixelWeights(false), badMaskPlanes(), growFootprint(3)
+    {
+        badMaskPlanes.push_back("BAD");
+        badMaskPlanes.push_back("SAT");
+        badMaskPlanes.push_back("INTRP");
+        badMaskPlanes.push_back("CR");
+    }
 
 private:
     virtual PTR(algorithms::AlgorithmControl) _clone() const;
@@ -68,21 +89,14 @@ private:
  */
 struct FitMultiGaussianModel {
 
+    std::string profile,
     double amplitude;
-    afw::geom::ellipses::Quadrupole ellipse; ///< ellipse corresponding to inner expansion
+    afw::geom::ellipses::Quadrupole ellipse;
     bool failed;  ///< set to true if the measurement failed
 
-    /**
-     *  @brief Construct a model from a double-Gaussian optimization parameter vector.
-     *
-     *  This is used internally by FitPsfAlgorithm to construct the model after fitting
-     *  an elliptical double-Gaussian, and the 4-element parameter vector should correspond
-     *  to the parameters used by FitPsfAlgorithm::makeObjective and
-     *  FitPsfAlgorithm::makeOptimizer.  By using those functions and this constructor,
-     *  we can inspect the optimizer at each step in Python.
-     */
     FitMultiGaussianModel(
-        FitMultiGaussianControl const & ctrl, double amplitude,
+        FitMultiGaussianControl const & ctrl,
+        double amplitude,
         ndarray::Array<double const,1,1> const & parameters
     );
 
@@ -90,15 +104,13 @@ struct FitMultiGaussianModel {
     FitMultiGaussianModel(FitMultiGaussianControl const & ctrl, afw::table::SourceRecord const & source);
 
     /// @brief Deep copy constructor.
-    FitMultiGaussianModel(FitMultiGaussianControl const & other);
+    FitMultiGaussianModel(FitMultiGaussianModel const & other);
 
     /// @brief Deep assignment operator.
     FitMultiGaussianModel & operator=(FitMultiGaussianModel const & other);
 
     /**
      *  @brief Return a MultiShapeletFunction representation of the model (unconvolved).
-     *
-     *  The elements will be [inner, outer].
      */
     shapelet::MultiShapeletFunction asMultiShapelet(
         afw::geom::Point2D const & center = afw::geom::Point2D()
@@ -120,6 +132,13 @@ public:
         return static_cast<FitMultiGaussianControl const &>(algorithms::Algorithm::getControl());
     }
 
+    template <typename PixelT>
+    static ndarray::Array<double,2,2> processInputs(
+        afw::detection::Footprint & footprint,
+        afw::image::MaskedImage<PixelT> const & image,
+        bool usePixelWeights, int badPixelMask, int growFootprint
+    );
+
     /**
      *  @brief Return an Objective that can be used to fit the convolved model to an image.
      *
@@ -127,37 +146,50 @@ public:
      *
      *  This is provided primarily for testing and debugging purposes.
      */
+    template <typename PixelT>
     static PTR(MultiGaussianObjective) makeObjective(
         FitMultiGaussianControl const & ctrl,
         FitPsfModel const & psfModel,
-        afw::image::Image<double> const & image,
+        afw::geom::ellipses::Quadrupole const & shape,
+        afw::detection::Footprint const & footprint,
+        afw::image::MaskedImage<PixelT> const & image,
         afw::geom::Point2D const & center
     );
 
     /**
-     *  @brief Return an optimizer that can be used to fit an elliptical double-Gaussian to the image.
+     *  @brief Return an optimizer that can be used to fit the convolved model image.
+     *
+     *  The optimizer's objective function will use only the Gaussian terms in the PSF for the convolution.
      *
      *  This is provided primarily for testing and debugging purposes; the user can create an optimizer,
-     *  step through it, and use the FitPsfModel constructor that takes a parameter vector to
+     *  step through it, and use the FitMultiGaussianModel constructor that takes a parameter vector to
      *  visualize its progress.
      */
+    template <typename PixelT>
     static HybridOptimizer makeOptimizer(
         FitPsfControl const & ctrl,
-        afw::image::Image<double> const & image,
+        FitPsfModel const & psfModel,
+        afw::geom::ellipses::Quadrupole const & shape,
+        afw::detection::Footprint const & footprint,
+        afw::image::MaskedImage<PixelT> const & image,
         afw::geom::Point2D const & center
     );
 
     /**
-     *  @brief Given a double-Gaussian-only model, fit additional shapelet terms.
+     *  @brief Given a model computed using only the double-Gaussian PSF approximation,
+     *         do a linear fit with additional shapelet terms in the PSF.
      *
      *  This is provided primarily for testing and debugging purposes; it is the second
      *  part of apply(), after the nonlinear double-Gaussian fit.
      */
+    template <typename PixelT>
     static void fitShapeletTerms(
-        FitPsfControl const & ctrl,
-        afw::image::Image<double> const & image,
+        FitMultiGaussianControl const & ctrl,
+        FitPsfModel const & psfModel,
+        afw::detection::Footprint const & footprint,
+        afw::image::MaskedImage<PixelT> const & image,
         afw::geom::Point2D const & center,
-        FitPsfModel & model
+        FitMultiGaussianModel & model
     );
 
     /**
@@ -167,33 +199,22 @@ public:
      *  values, and hence does not require a control object or an Algorithm instance.
      *
      *  @param[in] ctrl           Details of the model to fit.
+     *  @param[in] psfModel       Localized double-shapelet PSF model.
+     *  @param[in] shape          Shape measurement used to set initial ellipse parameters
+     *                            (interpreted as defined by ctrl data members).
      *  @param[in] image          Postage-stamp image of the PSF.
-     *  @param[in] center         Center of the PSF in the image's PARENT coordinate system
+     *  @param[in] center         Center of the object in the image's PARENT coordinate system
      *                            (i.e. xy0 is used).
      */
-    static FitPsfModel apply(
-        FitPsfControl const & ctrl,
-        afw::image::Image<double> const & image,
+    template <typename PixelT>
+    static FitMultiGaussianModel apply(
+        FitMultiGaussianControl const & ctrl,
+        FitPsfModel const & psfModel,
+        afw::geom::ellipses::Quadrupole const & shape,
+        afw::detection::Footprint const & footprint,
+        afw::image::MaskedImage<PixelT> const & image,
         afw::geom::Point2D const & center
     );
-
-    /**
-     *  @brief Fit a PSF object evaluated at a point.
-     *
-     *  This overload accepts the configuration options (inner and outer order) as separate
-     *  values, and hence does not require a control object or an Algorithm instance.
-     *
-     *  @param[in] ctrl           Details of the model to fit.
-     *  @param[in] psf            PSF object
-     *  @param[in] center         Point at which to evaluate the PSF.
-     */
-    static FitPsfModel apply(
-        FitPsfControl const & ctrl,
-        afw::detection::Psf const & psf,
-        afw::geom::Point2D const & center
-    ) {
-        return apply(ctrl, *psf.computeImage(center), center);
-    }
 
 private:
 
@@ -204,19 +225,17 @@ private:
         afw::geom::Point2D const & center
     ) const;
 
-    LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitPsfAlgorithm);
+    LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitMultiGaussianAlgorithm);
 
-    afw::table::Key< afw::table::Array<float> > _innerKey;
-    afw::table::Key< afw::table::Array<float> > _outerKey;
+    afw::table::KeyTuple<afw::table::flux> _fluxKeys;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
-    afw::table::Key< afw::table::Flag > _flagKey;
 };
 
-inline PTR(FitPsfAlgorithm) FitPsfControl::makeAlgorithm(
+inline PTR(FitMultiGaussianAlgorithm) FitMultiGaussianControl::makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata
 ) const {
-    return boost::static_pointer_cast<FitPsfAlgorithm>(_makeAlgorithm(schema, metadata));
+    return boost::static_pointer_cast<FitMultiGaussianAlgorithm>(_makeAlgorithm(schema, metadata));
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

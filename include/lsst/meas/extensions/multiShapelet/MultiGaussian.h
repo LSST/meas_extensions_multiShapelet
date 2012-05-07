@@ -25,11 +25,23 @@
 
 #include <vector>
 
+#include "lsst/afw/geom/Angle.h"
+
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
 struct MultiGaussianComponent {
     double amplitude;
     double radius;
+
+    typedef std::vector<MultiGaussianComponent> List;
+
+    static double integrate(List const & components) {
+        double flux = 0.0;
+        for (List::const_iterator i = components.begin(); i != components.end(); ++i) {
+            flux += i->amplitude * i->radius * i->radius;
+        }
+        return flux * 2.0 * afw::geom::PI;
+    }
     
     explicit MultiGaussianComponent(double amplitude_, double radius_) 
         : amplitude(amplitude_), radius(radius_) {}
