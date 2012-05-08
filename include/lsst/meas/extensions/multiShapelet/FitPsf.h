@@ -28,6 +28,7 @@
 #include "lsst/shapelet.h"
 #include "lsst/afw/detection/Psf.h"
 #include "lsst/meas/algorithms/Algorithm.h"
+#include "lsst/meas/extensions/multiShapelet/ModelInputHandler.h"
 #include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
@@ -140,8 +141,7 @@ public:
      */
     static PTR(MultiGaussianObjective) makeObjective(
         FitPsfControl const & ctrl,
-        afw::image::Image<double> const & image,
-        afw::geom::Point2D const & center
+        ModelInputHandler const & inputs
     );
 
     /**
@@ -153,8 +153,7 @@ public:
      */
     static HybridOptimizer makeOptimizer(
         FitPsfControl const & ctrl,
-        afw::image::Image<double> const & image,
-        afw::geom::Point2D const & center
+        ModelInputHandler const & inputs
     );
 
     /**
@@ -165,33 +164,23 @@ public:
      */
     static void fitShapeletTerms(
         FitPsfControl const & ctrl,
-        afw::image::Image<double> const & image,
-        afw::geom::Point2D const & center,
+        ModelInputHandler const & inputs,
         FitPsfModel & model
     );
 
     /**
      *  @brief Fit to a local PSF or kernel image.
      *
-     *  This overload accepts the configuration options (inner and outer order) as separate
-     *  values, and hence does not require a control object or an Algorithm instance.
-     *
      *  @param[in] ctrl           Details of the model to fit.
-     *  @param[in] image          Postage-stamp image of the PSF.
-     *  @param[in] center         Center of the PSF in the image's PARENT coordinate system
-     *                            (i.e. xy0 is used).
+     *  @param[in] inputs         Inputs that determine the data to be fit.
      */
     static FitPsfModel apply(
         FitPsfControl const & ctrl,
-        afw::image::Image<double> const & image,
-        afw::geom::Point2D const & center
+        ModelInputHandler const & inputs
     );
 
     /**
      *  @brief Fit a PSF object evaluated at a point.
-     *
-     *  This overload accepts the configuration options (inner and outer order) as separate
-     *  values, and hence does not require a control object or an Algorithm instance.
      *
      *  @param[in] ctrl           Details of the model to fit.
      *  @param[in] psf            PSF object
@@ -201,9 +190,7 @@ public:
         FitPsfControl const & ctrl,
         afw::detection::Psf const & psf,
         afw::geom::Point2D const & center
-    ) {
-        return apply(ctrl, *psf.computeImage(center), center);
-    }
+    );
 
 private:
 

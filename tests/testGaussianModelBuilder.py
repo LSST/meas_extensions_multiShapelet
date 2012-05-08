@@ -68,11 +68,11 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
             parameters[i] += eps
             ellipse = makeEllipse(parameters)
             builder.update(ellipse)
-            derivative[:,i] = builder.computeModel()
+            derivative[:,i] = builder.getModel()
             parameters[i] -= 2.0 * eps
             ellipse = makeEllipse(parameters)
             builder.update(ellipse)
-            derivative[:,i] -= builder.computeModel()
+            derivative[:,i] -= builder.getModel()
             derivative[:,i] /= 2.0 * eps
         return derivative
 
@@ -89,7 +89,7 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
     def testModel(self):
         builder = ms.GaussianModelBuilder(self.x, self.y)
         builder.update(self.ellipse)
-        self.assertClose(builder.computeModel(), self.model)
+        self.assertClose(builder.getModel(), self.model)
 
     def testDerivative1(self):
         """test derivative with no reparameterization"""
@@ -97,7 +97,6 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
         a = numpy.zeros((3, builder.getSize()), dtype=float).transpose()
         jac = numpy.identity(3, dtype=float)
         builder.update(self.ellipse)
-        builder.computeModel()
         builder.computeDerivative(a, jac)
         def makeAxesEllipse(p):
             return ellipses.Axes(*p)
@@ -109,12 +108,10 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
         """test derivative with nontrivial reparameterization (derivative wrt different core)"""
         builder = ms.GaussianModelBuilder(self.x, self.y)
         builder.update(self.ellipse)
-        builder.computeModel()
         quad = ellipses.Quadrupole(self.ellipse)
         jac = self.ellipse.dAssign(quad)
         a = numpy.zeros((3, builder.getSize()),dtype=float).transpose()
         builder.update(self.ellipse)
-        builder.computeModel()
         builder.computeDerivative(a, jac)
         def makeQuadrupole(p):
             return ellipses.Quadrupole(*p)

@@ -105,73 +105,6 @@ FitMultiGaussianAlgorithm::FitMultiGaussianAlgorithm(
 {}
 
 template <typename PixelT>
-ndarray::Array<double,2,2> FitMultiGaussianAlgorithm::processInputs(
-    afw::detection::Footprint & footprint,
-    afw::image::MaskedImage<PixelT> const & image,
-    bool usePixelWeights, afw::image::MaskPixel badPixelMask, int growFootprint
-) {
-    footprint = *afw::detection::growFootprint(footprint, growFootprint);
-    footprint.intersectMask(*image.getMask(), badPixelMask);
-    ndarray::Array<double,2,2> result = ndarray::allocate(2,footprint.getArea());
-    flattenArray(footprint, image.getImage()->getArray(), result[0].shallow(), image.getXY0());
-    flattenArray(footprint, image.getVariance()->getArray(), result[1].shallow(), image.getXY0());
-    ndarray::EigenView<double,1,1,Eigen::ArrayXpr> weights(result[1]);
-    weights = weights.sqrt().inverse();
-    if (!usePixelWeights) {
-        weights = weights.mean(); // TODO: mean(weights) or 1/RMS (or ...) here?
-    }
-    return result;
-}
-
-template <typename PixelT>
-PTR(MultiGaussianObjective) FitMultiGaussianAlgorithm::makeObjective(
-    FitMultiGaussianControl const & ctrl,
-    FitPsfModel const & psfModel,
-    afw::geom::ellipses::Quadrupole const & shape,
-    afw::detection::Footprint const & footprint,
-    afw::image::MaskedImage<PixelT> const & image,
-    afw::geom::Point2D const & center
-) {
-    // TODO
-    return boost::make_shared<MultiGaussianObjective>(
-        MultiGaussianRegistry::lookup(ctrl.profile), center,
-        footprint,
-        ndarray::flatten<1>(ndarray::copy(image.getArray()))
-    );
-}
-template <typename PixelT>
-HybridOptimizer FitMultiGaussianAlgorithm::makeOptimizer(
-    FitPsfControl const & ctrl,
-    FitPsfModel const & psfModel,
-    afw::geom::ellipses::Quadrupole const & shape,
-    afw::detection::Footprint const & footprint,
-    afw::image::MaskedImage<PixelT> const & image,
-    afw::geom::Point2D const & center
-) {
-    PTR(Objective) obj = makeObjective(ctrl, image, center);
-    HybridOptimizerControl optCtrl; // TODO: nest this in FitPsfControl
-    optCtrl.tau = 1E-6;
-    optCtrl.useCholesky = true;
-    optCtrl.gTol = 1E-6;
-    ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
-    MultiGaussianObjective::EllipseCore ellipse(0.0, 0.0, ctrl.initialRadius);
-    ellipse.writeParameters(initial.getData());
-    return HybridOptimizer(obj, initial, optCtrl);
-}
-
-template <typename PixelT>
-void FitMultiGaussianAlgorithm::fitShapeletTerms(
-    FitMultiGaussianControl const & ctrl,
-    FitPsfModel const & psfModel,
-    afw::detection::Footprint const & footprint,
-    afw::image::MaskedImage<PixelT> const & image,
-    afw::geom::Point2D const & center,
-    FitMultiGaussianModel & model
-) {
-    // TODO
-}
-
-template <typename PixelT>
 void FitMultiGaussianAlgorithm::_apply(
     afw::table::SourceRecord & source,
     afw::image::Exposure<PixelT> const & exposure,
@@ -185,32 +118,6 @@ void FitMultiGaussianAlgorithm::_apply(
         );
     }
     // TODO
-}
-
-template <typename PixelT>
-FitMultiGaussianModel FitMultiGaussianAlgorithm::apply(
-    FitMultiGaussianControl const & ctrl,
-    FitPsfModel const & psfModel,
-    afw::geom::ellipses::Quadrupole const & shape,
-    afw::detection::Footprint const & footprint,
-    afw::image::MaskedImage<PixelT> const & image,
-    afw::geom::Point2D const & center
-) {
-    // First, we fit using just an elliptical double-Gaussian for the PSF, then we do a linear
-    // fit with the full shapelet PSF later.
-    // We intentionally separate these steps into public functions so we can reproduce
-    // the same results with a pure-Python implementation that lets us visualize what's
-    // going on.
-    HybridOptimizer opt = makeOptimizer(ctrl, image, center);
-    opt.run();
-    Model model(
-        ctrl, 
-        boost::static_pointer_cast<MultiGaussianObjective const>(opt.getObjective())->getAmplitude(),
-        opt.getParameters()
-    );
-    model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
-    fitShapeletTerms(ctrl, image, center, model);
-    return model;
 }
 
 PTR(algorithms::AlgorithmControl) FitMultiGaussianControl::_clone() const {

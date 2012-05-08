@@ -37,7 +37,8 @@ class FitPsfViewer(object):
         self.saved = ms.FitPsfModel(self.ctrl, source)
         self.center = source.getCentroid()
         self.image = psf.computeImage(self.center)
-        opt = ms.FitPsfAlgorithm.makeOptimizer(self.ctrl, self.image, self.center)
+        self.inputs = ms.ModelInputHandler(self.image, self.center, self.image.getBBox(lsst.afw.image.PARENT))
+        opt = ms.FitPsfAlgorithm.makeOptimizer(self.ctrl, self.inputs)
         maxIter = opt.getControl().maxIter
         self.iterations = [self.Iteration(opt, self)]
         for self.iterCount in range(maxIter):
@@ -46,7 +47,7 @@ class FitPsfViewer(object):
             if opt.getState() & ms.HybridOptimizer.FINISHED:
                 break
         self.model = ms.FitPsfModel(self.iterations[-1].model)
-        ms.FitPsfAlgorithm.fitShapeletTerms(self.ctrl, self.image, self.center, self.model)
+        ms.FitPsfAlgorithm.fitShapeletTerms(self.ctrl, self.inputs, self.model)
 
     @staticmethod
     def _plotImage(image, title=None, ellipses=()):

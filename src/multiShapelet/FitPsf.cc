@@ -164,22 +164,19 @@ FitPsfAlgorithm::FitPsfAlgorithm(FitPsfControl const & ctrl, afw::table::Schema 
 
 PTR(MultiGaussianObjective) FitPsfAlgorithm::makeObjective(
     FitPsfControl const & ctrl,
-    afw::image::Image<double> const & image,
-    afw::geom::Point2D const & center
+    ModelInputHandler const & inputs
 ) {
     MultiGaussianList components;
     components.push_back(MultiGaussianComponent(1.0, 1.0));
     components.push_back(MultiGaussianComponent(ctrl.amplitudeRatio, ctrl.radiusRatio));
-    ModelInputHandler inputs(image, center, image.getBBox(afw::image::PARENT));
     return boost::make_shared<MultiGaussianObjective>(inputs, components);
 }
 
 HybridOptimizer FitPsfAlgorithm::makeOptimizer(
     FitPsfControl const & ctrl,
-    afw::image::Image<double> const & image,
-    afw::geom::Point2D const & center
+    ModelInputHandler const & inputs
 ) {
-    PTR(Objective) obj = makeObjective(ctrl, image, center);
+    PTR(Objective) obj = makeObjective(ctrl, inputs);
     HybridOptimizerControl optCtrl; // TODO: nest this in FitPsfControl
     optCtrl.tau = 1E-6;
     optCtrl.useCholesky = true;
@@ -188,6 +185,58 @@ HybridOptimizer FitPsfAlgorithm::makeOptimizer(
     MultiGaussianObjective::EllipseCore ellipse(0.0, 0.0, ctrl.initialRadius);
     ellipse.writeParameters(initial.getData());
     return HybridOptimizer(obj, initial, optCtrl);
+}
+
+void FitPsfAlgorithm::fitShapeletTerms(
+    FitPsfControl const & ctrl,
+    ModelInputHandler const & inputs,
+    FitPsfModel & model
+) {
+    int innerCoeffs = shapelet::computeSize(ctrl.innerOrder);
+    int outerCoeffs = shapelet::computeSize(ctrl.outerOrder);
+    ndarray::Array<double,2,-2> matrix = ndarray::allocate(inputs.getSize(), innerCoeffs + outerCoeffs);
+    shapelet::ModelBuilder innerShapelets(ctrl.innerOrder, inputs.getX(), inputs.getY());
+    shapelet::ModelBuilder outerShapelets(ctrl.outerOrder, inputs.getX(), inputs.getY());
+    innerShapelets.update(model.ellipse);
+    model.ellipse.scale(ctrl.radiusRatio);
+    outerShapelets.update(model.ellipse);
+    model.ellipse.scale(1.0 / ctrl.radiusRatio);
+    matrix[ndarray::view()(0, innerCoeffs)] = innerShapelets.getModel();
+    matrix[ndarray::view()(innerCoeffs, innerCoeffs + outerCoeffs)] = outerShapelets.getModel();
+    afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
+    model.inner.deep() = lstsq.getSolution()[ndarray::view(0, innerCoeffs)];
+    model.outer.deep() = lstsq.getSolution()[ndarray::view(innerCoeffs, innerCoeffs + outerCoeffs)];
+}
+
+FitPsfModel FitPsfAlgorithm::apply(
+    FitPsfControl const & ctrl,
+    ModelInputHandler const & inputs
+) {
+    // First, we fit an elliptical double-Gaussian with fixed radius and amplitude ratios;
+    // the free parameters are the amplitude and ellipse core of the inner component.
+    // We intentionally separate these steps into public functions so we can reproduce
+    // the same results with a pure-Python implementation that lets us visualize what's
+    // going on.
+    HybridOptimizer opt = makeOptimizer(ctrl, inputs);
+    opt.run();
+    Model model(
+        ctrl, 
+        boost::static_pointer_cast<MultiGaussianObjective const>(opt.getObjective())->getAmplitude(),
+        opt.getParameters()
+    );
+    model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
+    fitShapeletTerms(ctrl, inputs, model);
+    return model;
+}
+
+FitPsfModel FitPsfAlgorithm::apply(
+    FitPsfControl const & ctrl,
+    afw::detection::Psf const & psf,
+    afw::geom::Point2D const & center
+) {
+    PTR(afw::image::Image<afw::math::Kernel::Pixel>) image = psf.computeImage(center);
+    ModelInputHandler inputs(*image, center, image->getBBox(afw::image::PARENT));
+    return apply(ctrl, inputs);
 }
 
 template <typename PixelT>
@@ -208,51 +257,6 @@ void FitPsfAlgorithm::_apply(
     source[_outerKey] = model.outer;
     source.set(_ellipseKey, model.ellipse);
     source.set(_flagKey, model.failed);
-}
-
-void FitPsfAlgorithm::fitShapeletTerms(
-    FitPsfControl const & ctrl,
-    afw::image::Image<double> const & image,
-    afw::geom::Point2D const & center,
-    FitPsfModel & model
-) {
-    afw::geom::Box2I bbox = image.getBBox(afw::image::PARENT);
-    int innerCoeffs = shapelet::computeSize(ctrl.innerOrder);
-    int outerCoeffs = shapelet::computeSize(ctrl.outerOrder);
-    ndarray::Array<double,2,-2> matrix = ndarray::allocate(bbox.getArea(), innerCoeffs + outerCoeffs);
-    afw::geom::ellipses::Ellipse innerEllipse(model.ellipse, center);
-    afw::geom::ellipses::Ellipse outerEllipse(model.ellipse, center);
-    outerEllipse.getCore().scale(ctrl.radiusRatio);
-    shapelet::ModelBuilder innerShapelets(ctrl.innerOrder, innerEllipse, bbox);
-    shapelet::ModelBuilder outerShapelets(ctrl.outerOrder, outerEllipse, bbox);
-    matrix[ndarray::view()(0, innerCoeffs)] = innerShapelets.getModel();
-    matrix[ndarray::view()(innerCoeffs, innerCoeffs + outerCoeffs)] = outerShapelets.getModel();
-    ndarray::Array<double,1,1> data = ndarray::flatten<1>(ndarray::copy(image.getArray()));
-    afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, data);
-    model.inner.deep() = lstsq.getSolution()[ndarray::view(0, innerCoeffs)];
-    model.outer.deep() = lstsq.getSolution()[ndarray::view(innerCoeffs, innerCoeffs + outerCoeffs)];
-}
-
-FitPsfModel FitPsfAlgorithm::apply(
-    FitPsfControl const & ctrl,
-    afw::image::Image<double> const & image,
-    afw::geom::Point2D const & center
-) {
-    // First, we fit an elliptical double-Gaussian with fixed radius and amplitude ratios;
-    // the free parameters are the amplitude and ellipse core of the inner component.
-    // We intentionally separate these steps into public functions so we can reproduce
-    // the same results with a pure-Python implementation that lets us visualize what's
-    // going on.
-    HybridOptimizer opt = makeOptimizer(ctrl, image, center);
-    opt.run();
-    Model model(
-        ctrl, 
-        boost::static_pointer_cast<MultiGaussianObjective const>(opt.getObjective())->getAmplitude(),
-        opt.getParameters()
-    );
-    model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
-    fitShapeletTerms(ctrl, image, center, model);
-    return model;
 }
 
 PTR(algorithms::AlgorithmControl) FitPsfControl::_clone() const {

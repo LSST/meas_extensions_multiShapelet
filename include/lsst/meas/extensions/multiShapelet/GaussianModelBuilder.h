@@ -45,9 +45,7 @@ public:
 
     int getSize() const { return _x.size(); }
 
-    void update(afw::geom::ellipses::BaseCore const & core);
-
-    ndarray::Array<double const,1,1> computeModel();
+    void update(afw::geom::ellipses::BaseCore const & ellipse);
 
     ndarray::Array<double const,1,1> getModel() const { return _model; }
 

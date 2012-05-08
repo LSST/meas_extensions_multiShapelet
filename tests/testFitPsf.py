@@ -64,7 +64,8 @@ class FitPsfTestCase(unittest.TestCase):
         xGrid, yGrid = numpy.meshgrid(numpy.arange(-2, 3), numpy.arange(-2, 3))
         image.getArray()[:,:] = 1.0 * numpy.exp(-0.5*(xGrid**2 + yGrid**2))
         image.getArray()[:,:] += numpy.random.randn(5, 5) * 0.1
-        obj = ms.FitPsfAlgorithm.makeObjective(ctrl, image, center)
+        inputs = ms.ModelInputHandler(image, center, image.getBBox(lsst.afw.image.PARENT))
+        obj = ms.FitPsfAlgorithm.makeObjective(ctrl, inputs)
         parameters = numpy.random.rand(nTests, nParameters) * 0.2
         parameters[:,2] += 2
         for i in range(nTests):

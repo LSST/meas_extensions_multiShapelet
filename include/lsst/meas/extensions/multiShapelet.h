@@ -25,6 +25,7 @@
 
 #include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 #include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
+#include "lsst/meas/extensions/multiShapelet/ModelInputHandler.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussian.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"

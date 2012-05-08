@@ -132,13 +132,6 @@ public:
         return static_cast<FitMultiGaussianControl const &>(algorithms::Algorithm::getControl());
     }
 
-    template <typename PixelT>
-    static ndarray::Array<double,2,2> processInputs(
-        afw::detection::Footprint & footprint,
-        afw::image::MaskedImage<PixelT> const & image,
-        bool usePixelWeights, afw::image::MaskPixel badPixelMask, int growFootprint
-    );
-
     /**
      *  @brief Return an Objective that can be used to fit the convolved model to an image.
      *
@@ -151,9 +144,7 @@ public:
         FitMultiGaussianControl const & ctrl,
         FitPsfModel const & psfModel,
         afw::geom::ellipses::Quadrupole const & shape,
-        afw::detection::Footprint const & footprint,
-        afw::image::MaskedImage<PixelT> const & image,
-        afw::geom::Point2D const & center
+        ModelInputHandler const & inputs
     );
 
     /**
@@ -170,9 +161,7 @@ public:
         FitPsfControl const & ctrl,
         FitPsfModel const & psfModel,
         afw::geom::ellipses::Quadrupole const & shape,
-        afw::detection::Footprint const & footprint,
-        afw::image::MaskedImage<PixelT> const & image,
-        afw::geom::Point2D const & center
+        ModelInputHandler const & inputs
     );
 
     /**
@@ -186,17 +175,29 @@ public:
     static void fitShapeletTerms(
         FitMultiGaussianControl const & ctrl,
         FitPsfModel const & psfModel,
-        afw::detection::Footprint const & footprint,
-        afw::image::MaskedImage<PixelT> const & image,
-        afw::geom::Point2D const & center,
+        ModelInputHandler const & inputs,
         FitMultiGaussianModel & model
     );
 
     /**
      *  @brief Fit to a local PSF or kernel image.
      *
-     *  This overload accepts the configuration options (inner and outer order) as separate
-     *  values, and hence does not require a control object or an Algorithm instance.
+     *  @param[in] ctrl           Details of the model to fit.
+     *  @param[in] psfModel       Localized double-shapelet PSF model.
+     *  @param[in] shape          Shape measurement used to set initial ellipse parameters
+     *                            (interpreted as defined by ctrl data members).
+     *  @param[in] inputs         Inputs that determine the data to be fit.
+     */
+    template <typename PixelT>
+    static FitMultiGaussianModel apply(
+        FitMultiGaussianControl const & ctrl,
+        FitPsfModel const & psfModel,
+        afw::geom::ellipses::Quadrupole const & shape,
+        ModelInputHandler const & inputs
+    );
+
+    /**
+     *  @brief Fit to a local PSF or kernel image.
      *
      *  @param[in] ctrl           Details of the model to fit.
      *  @param[in] psfModel       Localized double-shapelet PSF model.

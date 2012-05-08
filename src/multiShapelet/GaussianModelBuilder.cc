@@ -59,16 +59,12 @@ GaussianModelBuilder & GaussianModelBuilder::operator=(GaussianModelBuilder cons
 
 void GaussianModelBuilder::update(afw::geom::ellipses::BaseCore const & core) {
     _esnJacobian = _esn.update(core);
-}
-
-ndarray::Array<double const,1,1> GaussianModelBuilder::computeModel() {
     if (_model.isEmpty()) {
         _model = ndarray::allocate(_x.size());
     }
     ndarray::EigenView<double,1,1> z(_model);
     _esn(_x, _y, _rx, _ry, z);
     z.array() = std::exp(-0.5 * z.array());
-    return _model;
 }
 
 void GaussianModelBuilder::computeDerivative(

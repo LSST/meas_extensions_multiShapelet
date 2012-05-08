@@ -35,7 +35,7 @@ void MultiGaussianObjective::computeFunction(
     for (std::size_t n = 0; n < _builders.size(); ++n) {
         _ellipse.scale(_components[n].radius);
         _builders[n].update(_ellipse);
-        model += _components[n].amplitude * _builders[n].computeModel().asEigen();
+        model += _components[n].amplitude * _builders[n].getModel().asEigen();
         _ellipse.scale(1.0 / _components[n].radius);
     }
     if (!_inputs.getWeights().isEmpty()) {
