@@ -46,7 +46,12 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %declareNumPyConverters(ndarray::Array<double,1,1>);
 %declareNumPyConverters(ndarray::Array<double,2,-1>);
 %declareNumPyConverters(ndarray::Array<double,2,-2>);
-%declareNumPyConverters(Eigen::Matrix<double,5,Eigen::Dynamic>);
+%declareNumPyConverters(Eigen::Matrix<double,3,Eigen::Dynamic>);
+
+%include "lsst/meas/extensions/multiShapelet/ModelInputHandler.h"
+
+%template(ModelInputHandler) lsst::meas::extensions::multiShapelet::ModelInputHandler::ModelInputHandler<float>;
+%template(ModelInputHandler) lsst::meas::extensions::multiShapelet::ModelInputHandler::ModelInputHandler<double>;
 
 %include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 

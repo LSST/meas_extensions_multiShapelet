@@ -34,9 +34,10 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 class GaussianModelBuilder {
 public:
 
-    explicit GaussianModelBuilder(afw::detection::Footprint const & region);
-
-    explicit GaussianModelBuilder(afw::geom::Box2I const & region);
+    GaussianModelBuilder(
+        ndarray::Array<double const,1,1> const & x,
+        ndarray::Array<double const,1,1> const & y
+    );
     
     GaussianModelBuilder(GaussianModelBuilder const & other);
 
@@ -46,17 +47,13 @@ public:
 
     void update(afw::geom::ellipses::BaseCore const & core);
 
-    void update(afw::geom::Point2D const & center);
-
-    void update(afw::geom::ellipses::Ellipse const & ellipse);
-
     ndarray::Array<double const,1,1> computeModel();
 
     ndarray::Array<double const,1,1> getModel() const { return _model; }
 
     void computeDerivative(
         ndarray::Array<double,2,-1> const & output,
-        Eigen::Matrix<double,5,Eigen::Dynamic> const & jacobian,
+        Eigen::Matrix<double,3,Eigen::Dynamic> const & jacobian,
         bool add = false
     );
 
@@ -66,10 +63,8 @@ private:
 
     EllipseSquaredNorm _esn;
     Eigen::Matrix<double,3,3> _esnJacobian;
-    Eigen::VectorXd _x;
-    Eigen::VectorXd _y;
-    Eigen::VectorXd _tx;
-    Eigen::VectorXd _ty;
+    ndarray::EigenView<double const,1,1> _x;
+    ndarray::EigenView<double const,1,1> _y;
     Eigen::VectorXd _rx;
     Eigen::VectorXd _ry;
     ndarray::Array<double,1,1> _model;

@@ -170,10 +170,8 @@ PTR(MultiGaussianObjective) FitPsfAlgorithm::makeObjective(
     MultiGaussianList components;
     components.push_back(MultiGaussianComponent(1.0, 1.0));
     components.push_back(MultiGaussianComponent(ctrl.amplitudeRatio, ctrl.radiusRatio));
-    return boost::make_shared<MultiGaussianObjective>(
-        components, center, image.getBBox(afw::image::PARENT),
-        ndarray::flatten<1>(ndarray::copy(image.getArray()))
-    );
+    ModelInputHandler inputs(image, center, image.getBBox(afw::image::PARENT));
+    return boost::make_shared<MultiGaussianObjective>(inputs, components);
 }
 
 HybridOptimizer FitPsfAlgorithm::makeOptimizer(

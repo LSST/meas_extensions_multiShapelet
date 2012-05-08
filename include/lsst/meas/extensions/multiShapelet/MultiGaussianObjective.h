@@ -25,6 +25,7 @@
 
 #include "lsst/meas/extensions/multiShapelet/MultiGaussian.h"
 #include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
+#include "lsst/meas/extensions/multiShapelet/ModelInputHandler.h"
 #include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
@@ -47,20 +48,20 @@ public:
 
     double getAmplitude() const { return _amplitude; }
     
+    ModelInputHandler const & getInputs() const { return _inputs; }
+
 #ifndef SWIG // Don't need to create this class from Python, just use it.
 
     MultiGaussianObjective(
-        MultiGaussianList const & components, afw::geom::Point2D const & center,
-        afw::detection::Footprint const & region,
-        ndarray::Array<double const,1,1> const & data,
-        ndarray::Array<double const,1,1> const & weights = ndarray::Array<double,1,1>()
+        ModelInputHandler const & inputs,
+        MultiGaussianList const & components
     );
 
     MultiGaussianObjective(
-        MultiGaussianList const & components, afw::geom::Point2D const & center,
-        afw::geom::Box2I const & bbox,
-        ndarray::Array<double const,1,1> const & data,
-        ndarray::Array<double const,1,1> const & weights = ndarray::Array<double,1,1>()
+        ModelInputHandler const & inputs,
+        MultiGaussianList const & components,
+        MultiGaussianList const & psfComponents,
+        afw::geom::ellipses::Quadrupole const & psfEllipse
     );
 
 #endif
@@ -69,16 +70,15 @@ private:
 
     typedef std::vector<GaussianModelBuilder> BuilderList;
 
-    void _initialize(afw::geom::Point2D const & center);
-
     double _amplitude;
     double _modelSquaredNorm;
     EllipseCore _ellipse;
+    EllipseCore _psfEllipse;
     MultiGaussianList _components;
+    MultiGaussianList _psfComponents;
+    ModelInputHandler _inputs;
     BuilderList _builders;
     ndarray::Array<double,1,1> _model;
-    ndarray::Array<double const,1,1> _data;
-    ndarray::Array<double const,1,1> _weights;
 };
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

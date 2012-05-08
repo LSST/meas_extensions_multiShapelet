@@ -38,12 +38,12 @@ void MultiGaussianObjective::computeFunction(
         model += _components[n].amplitude * _builders[n].computeModel().asEigen();
         _ellipse.scale(1.0 / _components[n].radius);
     }
-    if (!_weights.isEmpty()) {
-        model.array() *= _weights.asEigen<Eigen::ArrayXpr>();
+    if (!_inputs.getWeights().isEmpty()) {
+        model.array() *= _inputs.getWeights().asEigen<Eigen::ArrayXpr>();
     }
     _modelSquaredNorm = model.squaredNorm();
-    _amplitude = model.dot(_data.asEigen()) / _modelSquaredNorm;
-    function.asEigen() = _amplitude * model - _data.asEigen();
+    _amplitude = model.dot(_inputs.getData().asEigen()) / _modelSquaredNorm;
+    function.asEigen() = _amplitude * model - _inputs.getData().asEigen();
 }
 
 void MultiGaussianObjective::computeDerivative(
@@ -52,23 +52,22 @@ void MultiGaussianObjective::computeDerivative(
     ndarray::Array<double,2,-2> const & derivative
 ) {
     derivative.asEigen().setZero();
-    Eigen::Matrix<double,5,Eigen::Dynamic> jacobian(5, 3);
-    jacobian.setZero();
+    Eigen::Matrix3d jacobian;
     for (std::size_t n = 0; n < _builders.size(); ++n) {
         afw::geom::LinearTransform scaling = afw::geom::LinearTransform::makeScaling(_components[n].radius);
-        jacobian.block<3,3>(0, 0) = _ellipse.transform(scaling).d() * _components[n].amplitude;
+        jacobian = _ellipse.transform(scaling).d() * _components[n].amplitude;
         _ellipse.scale(_components[n].radius);
         _builders[n].computeDerivative(derivative, jacobian, true);
         _ellipse.scale(1.0 /_components[n].radius);
     }
-    if (!_weights.isEmpty()) {
+    if (!_inputs.getWeights().isEmpty()) {
         derivative.asEigen<Eigen::ArrayXpr>() 
-            *= (_weights.asEigen() * Eigen::RowVectorXd::Ones(parameters.getSize<0>())).array();
+            *= (_inputs.getWeights().asEigen() * Eigen::RowVectorXd::Ones(parameters.getSize<0>())).array();
     }
     // Right now, 'derivative' is the partial derivative w.r.t. the objective parameters
     // with amplitude held fixed at 1.  However, the parameters also affect the amplitude, so we need
     // to compute the partial derivative of that.
-    Eigen::VectorXd tmp = _data.asEigen() - 2.0 * _amplitude * _model.asEigen();
+    Eigen::VectorXd tmp = _inputs.getData().asEigen() - 2.0 * _amplitude * _model.asEigen();
     Eigen::VectorXd dAmplitude = (derivative.asEigen().adjoint() * tmp) / _modelSquaredNorm;
     // Now we update 'derivative' so it becomes the complete derivative rather than the partial.
     derivative.asEigen() *= _amplitude;
@@ -76,43 +75,27 @@ void MultiGaussianObjective::computeDerivative(
 }
 
 MultiGaussianObjective::MultiGaussianObjective(
-    MultiGaussianList const & components, afw::geom::Point2D const & center,
-    afw::detection::Footprint const & region,
-    ndarray::Array<double const,1,1> const & data,
-    ndarray::Array<double const,1,1> const & weights
-) : Objective(region.getArea(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
-    _ellipse(),
-    _components(components), _builders(components.size(), GaussianModelBuilder(region)), 
-    _model(ndarray::allocate(region.getArea())), _data(data), _weights(weights)
-{
-    _initialize(center);
-}
+    ModelInputHandler const & inputs,
+    MultiGaussianList const & components
+) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
+    _ellipse(), _psfEllipse(0.0, 0.0, 0.0),
+    _components(components), _psfComponents(1, MultiGaussianComponent(1.0, 1.0)),
+    _inputs(inputs),
+    _builders(components.size(), GaussianModelBuilder(inputs.getX(), inputs.getY())), 
+    _model(ndarray::allocate(inputs.getSize()))
+{}
 
 MultiGaussianObjective::MultiGaussianObjective(
-    MultiGaussianList const & components, afw::geom::Point2D const & center,
-    afw::geom::Box2I const & bbox,
-    ndarray::Array<double const,1,1> const & data,
-    ndarray::Array<double const,1,1> const & weights
-) : Objective(bbox.getArea(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
-    _ellipse(),
-    _components(components), _builders(components.size(), GaussianModelBuilder(bbox)),
-    _model(ndarray::allocate(bbox.getArea())), _data(data), _weights(weights)
-{
-    _initialize(center);
-}
-
-void MultiGaussianObjective::_initialize(afw::geom::Point2D const & center) {
-    assert(getFunctionSize() == _data.getSize<0>());
-    assert(_weights.isEmpty() || getFunctionSize() == _weights.getSize<0>());
-    if (!_weights.isEmpty()) {
-        ndarray::EigenView<double,1,1,Eigen::ArrayXpr> wd(ndarray::copy(_data));
-        wd *= _weights.asEigen<Eigen::ArrayXpr>();
-        _data = wd.shallow();
-    }
-    _model.deep() = 0.0;
-    for (BuilderList::iterator i = _builders.begin(); i != _builders.end(); ++i) {
-        i->update(center);
-    }
-}
+    ModelInputHandler const & inputs,
+    MultiGaussianList const & components,
+    MultiGaussianList const & psfComponents,
+    afw::geom::ellipses::Quadrupole const & psfEllipse
+) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
+    _ellipse(), _psfEllipse(psfEllipse),
+    _components(components), _psfComponents(psfComponents),
+    _inputs(inputs),
+    _builders(components.size(), GaussianModelBuilder(inputs.getX(), inputs.getY())), // TODO
+    _model(ndarray::allocate(inputs.getSize()))
+{}
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

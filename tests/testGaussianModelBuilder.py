@@ -54,16 +54,12 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
         self.assert_(numpy.allclose(a, b, rtol=rtol, atol=atol), "\n%s\n!=\n%s" % (a, b))
 
     def buildModel(self, ellipse):
-        model = numpy.zeros(self.region.getArea(), dtype=float).transpose()
-        n = 0
+        LT = geom.LinearTransform
         gt = ellipse.getGridTransform()
-        for span in self.region.getSpans():
-            y = span.getY()
-            for x in range(span.getX0(), span.getX1() + 1):
-                p = gt(geom.Point2D(x, y))
-                model[n] = numpy.exp(-0.5 * (p.getX()**2 + p.getY()**2))
-                n += 1
-        return model
+        xt = gt[LT.XX] * self.xg + gt[LT.XY] * self.yg
+        yt = gt[LT.YX] * self.xg + gt[LT.YY] * self.yg
+        model = numpy.exp(-0.5 * (yt**2 + xt**2))
+        return model.ravel()
 
     def buildNumericalDerivative(self, builder, parameters, makeEllipse):
         eps = 1E-6
@@ -81,70 +77,47 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
         return derivative
 
     def setUp(self):
-        self.ellipse = ellipses.Ellipse(ellipses.Axes(10, 7, 0.3), geom.Point2D(500, 600))
-        self.bbox = geom.Box2I(lsst.afw.geom.Point2I(480, 580), geom.Point2I(501, 601))
-        self.region = lsst.afw.detection.Footprint(self.bbox)
+        self.ellipse = ellipses.Axes(10, 7, 0.3)
+        self.xg, self.yg = numpy.meshgrid(numpy.linspace(-20, 20, 101), numpy.linspace(-15, 25, 95))
+        self.x = self.xg.ravel()
+        self.y = self.yg.ravel()
         self.model = self.buildModel(self.ellipse)
 
     def tearDown(self):
         del self.ellipse
-        del self.bbox
-        del self.region
 
-    def testModel1(self):
-        builder = ms.GaussianModelBuilder(self.bbox)
-        builder.update(self.ellipse)
-        self.assertClose(builder.computeModel(), self.model)
-
-    def testModel2(self):
-        builder = ms.GaussianModelBuilder(self.region)
+    def testModel(self):
+        builder = ms.GaussianModelBuilder(self.x, self.y)
         builder.update(self.ellipse)
         self.assertClose(builder.computeModel(), self.model)
 
     def testDerivative1(self):
         """test derivative with no reparameterization"""
-        builder = ms.GaussianModelBuilder(self.bbox)
-        a = numpy.zeros((5, builder.getSize()), dtype=float).transpose()
-        jac = numpy.identity(5, dtype=float)
+        builder = ms.GaussianModelBuilder(self.x, self.y)
+        a = numpy.zeros((3, builder.getSize()), dtype=float).transpose()
+        jac = numpy.identity(3, dtype=float)
         builder.update(self.ellipse)
         builder.computeModel()
         builder.computeDerivative(a, jac)
         def makeAxesEllipse(p):
-            return ellipses.Ellipse(ellipses.Axes(*p[0:3]), geom.Point2D(*p[3:5]))
+            return ellipses.Axes(*p)
         n = self.buildNumericalDerivative(builder, self.ellipse.getParameterVector(), makeAxesEllipse)
         # no hard requirement for tolerances here, but I've dialed them to the max to avoid regressions
         self.assertClose(a, n, rtol=1E-4, atol=1E-6)
 
     def testDerivative2(self):
-        """test derivative with trivial reparameterization (derivative wrt center point only)"""
-        builder = ms.GaussianModelBuilder(self.bbox)
-        jac = numpy.zeros((5, 2), dtype=float)
-        jac[3,0] = 1.0
-        jac[4,1] = 1.0
-        a = numpy.zeros((2, builder.getSize()), dtype=float).transpose()
-        builder.update(self.ellipse)
-        builder.computeModel()
-        builder.computeDerivative(a, jac)
-        def makePoint(p):
-            return ellipses.Ellipse(self.ellipse.getCore(), geom.Point2D(*p))
-        n = self.buildNumericalDerivative(builder, self.ellipse.getParameterVector()[3:5], makePoint)
-        # no hard requirement for tolerances here, but I've dialed them to the max to avoid regressions
-        self.assertClose(a, n, rtol=1E-4, atol=1E-6)
-
-    def testDerivative3(self):
         """test derivative with nontrivial reparameterization (derivative wrt different core)"""
-        builder = ms.GaussianModelBuilder(self.bbox)
+        builder = ms.GaussianModelBuilder(self.x, self.y)
         builder.update(self.ellipse)
         builder.computeModel()
-        quad = ellipses.Quadrupole(self.ellipse.getCore())
-        jac = numpy.zeros((5, 3), dtype=float)
-        jac[:3,:] = self.ellipse.getCore().dAssign(quad)
+        quad = ellipses.Quadrupole(self.ellipse)
+        jac = self.ellipse.dAssign(quad)
         a = numpy.zeros((3, builder.getSize()),dtype=float).transpose()
         builder.update(self.ellipse)
         builder.computeModel()
         builder.computeDerivative(a, jac)
         def makeQuadrupole(p):
-            return ellipses.Ellipse(ellipses.Quadrupole(*p), self.ellipse.getCenter())
+            return ellipses.Quadrupole(*p)
         n = self.buildNumericalDerivative(builder, quad.getParameterVector(), makeQuadrupole)
         # no hard requirement for tolerances here, but I've dialed them to the max to avoid regressions
         self.assertClose(a, n, rtol=1E-4, atol=1E-6)

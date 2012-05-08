@@ -25,50 +25,29 @@
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
-GaussianModelBuilder::GaussianModelBuilder(afw::detection::Footprint const & region) :
-    _x(region.getArea()), _y(region.getArea()),
-    _tx(region.getArea()), _ty(region.getArea()),
-    _rx(region.getArea()), _ry(region.getArea())
+GaussianModelBuilder::GaussianModelBuilder(
+    ndarray::Array<double const,1,1> const & x,
+    ndarray::Array<double const,1,1> const & y
+) :
+    _x(x), _y(y), _rx(x.size()), _ry(y.size())
 {
-    int n = 0;
-    for (
-        afw::detection::Footprint::SpanList::const_iterator i = region.getSpans().begin();
-        i != region.getSpans().end();
-        ++i
-    ) {
-        for (int x = (**i).getX0(); x <= (**i).getX1(); ++x, ++n) {
-            _x[n] = x;
-            _y[n] = (**i).getY();
-        }
-    }
-}
-
-GaussianModelBuilder::GaussianModelBuilder(afw::geom::Box2I const & region) :
-    _x(region.getArea()), _y(region.getArea()),
-    _tx(region.getArea()), _ty(region.getArea()),
-    _rx(region.getArea()), _ry(region.getArea())
-{
-    int n = 0;
-    afw::geom::Point2I const llc = region.getMin();
-    afw::geom::Point2I const urc = region.getMax();
-    for (int y = llc.getY(); y <= urc.getY(); ++y) {
-        for (int x = llc.getX(); x <= urc.getX(); ++x, ++n) {
-            _x[n] = x;
-            _y[n] = y;
-        }
+    if (_x.size() != _y.size()) {
+        throw LSST_EXCEPT(
+            pex::exceptions::LengthErrorException,
+            (boost::format("x coordinate array size (%d) does not match y coordinate array size (%d)")
+             % _x.size() % _y.size()).str()
+        );
     }
 }
 
 GaussianModelBuilder::GaussianModelBuilder(GaussianModelBuilder const & other) :
-    _x(other._x), _y(other._y), _tx(other._tx), _ty(other._ty), _rx(other._rx), _ry(other._ry)
+    _x(other._x), _y(other._y), _rx(other._rx), _ry(other._ry)
 {}
 
 GaussianModelBuilder & GaussianModelBuilder::operator=(GaussianModelBuilder const & other) {
     if (&other != this) {
-        _x = other._x;
-        _y = other._y;
-        _tx = other._tx;
-        _ty = other._ty;
+        _x.reset(other._x.shallow());
+        _y.reset(other._y.shallow());
         _rx = other._rx;
         _ry = other._ry;
         _esn = other._esn;
@@ -82,29 +61,19 @@ void GaussianModelBuilder::update(afw::geom::ellipses::BaseCore const & core) {
     _esnJacobian = _esn.update(core);
 }
 
-void GaussianModelBuilder::update(afw::geom::ellipses::Ellipse const & ellipse) {
-    update(ellipse.getCore());
-    update(ellipse.getCenter());
-}
-
-void GaussianModelBuilder::update(afw::geom::Point2D const & center) {
-    _tx.array() = _x.array() - center.getX();
-    _ty.array() = _y.array() - center.getY();
-}
-
 ndarray::Array<double const,1,1> GaussianModelBuilder::computeModel() {
     if (_model.isEmpty()) {
         _model = ndarray::allocate(_x.size());
     }
     ndarray::EigenView<double,1,1> z(_model);
-    _esn(_tx, _ty, _rx, _ry, z);
+    _esn(_x, _y, _rx, _ry, z);
     z.array() = std::exp(-0.5 * z.array());
     return _model;
 }
 
 void GaussianModelBuilder::computeDerivative(
     ndarray::Array<double,2,-1> const & output,
-    Eigen::Matrix<double,5,Eigen::Dynamic> const & jacobian,
+    Eigen::Matrix<double,3,Eigen::Dynamic> const & jacobian,
     bool add
 ) {
     if (_model.isEmpty()) {
@@ -129,27 +98,14 @@ void GaussianModelBuilder::computeDerivative(
     }
     ndarray::EigenView<double,2,-1> out(output);
     if (!add) out.setZero();
-    double const eps = std::numeric_limits<double>::epsilon() * jacobian.lpNorm<Eigen::Infinity>();
-    if ((jacobian.bottomRows<2>().array().abs() > eps).any()) {
-        // Compute derivative wrt center point
-        Eigen::VectorXd dz_dx = Eigen::VectorXd::Zero(_x.size());
-        Eigen::VectorXd dz_dy = Eigen::VectorXd::Zero(_y.size());
-        _esn.dCoords(_tx, _ty, _rx, _ry, dz_dx, dz_dy);
-        dz_dx.array() *= -0.5 * _model.asEigen<Eigen::ArrayXpr>();
-        dz_dy.array() *= -0.5 * _model.asEigen<Eigen::ArrayXpr>();
-        out -= dz_dx * jacobian.row(3);
-        out -= dz_dy * jacobian.row(4);
+    // Compute derivative wrt ellipse core
+    Eigen::MatrixXd dz_de = Eigen::MatrixXd::Zero(_x.size(), jacobian.cols());
+    Eigen::Matrix<double,3,Eigen::Dynamic> coreJacobian = _esnJacobian * jacobian;
+    _esn.dEllipse(_x, _y, _rx, _ry, coreJacobian, dz_de);
+    for (int n = 0; n < jacobian.cols(); ++n) {
+        dz_de.col(n).array() *= -0.5 * _model.asEigen<Eigen::ArrayXpr>();
     }
-    if ((jacobian.topRows<3>().array().abs() > eps).any()) {
-        // Compute derivative wrt ellipse core
-        Eigen::MatrixXd dz_de = Eigen::MatrixXd::Zero(_x.size(), jacobian.cols());
-        Eigen::Matrix<double,3,Eigen::Dynamic> coreJacobian = _esnJacobian * jacobian.topRows<3>();
-        _esn.dEllipse(_tx, _ty, _rx, _ry, coreJacobian, dz_de);
-        for (int n = 0; n < jacobian.cols(); ++n) {
-            dz_de.col(n).array() *= -0.5 * _model.asEigen<Eigen::ArrayXpr>();
-        }
-        out += dz_de;
-    }
+    out += dz_de;
 }
 
 void GaussianModelBuilder::setOutput(ndarray::Array<double,1,1> const & array) {
