@@ -38,7 +38,7 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
  *         \left[\begin{array}{ c c }
  *            Q_{xx} & Q_{xy} \\
  *            Q_{yx} & Q_{yy}
- *         \end{array}\right]
+ *         \end{array}\right]^{-1}
  *         \left[\begin{array}{ c }
  *           x \\
  *           y
