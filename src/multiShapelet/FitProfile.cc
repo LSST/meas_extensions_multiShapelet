@@ -21,7 +21,7 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
-#include "lsst/meas/extensions/multiShapelet/FitMultiGaussian.h"
+#include "lsst/meas/extensions/multiShapelet/FitProfile.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
 #include "lsst/shapelet/ModelBuilder.h"
@@ -31,8 +31,8 @@
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
-FitMultiGaussianModel::FitMultiGaussianModel(
-    FitMultiGaussianControl const & ctrl,
+FitProfileModel::FitProfileModel(
+    FitProfileControl const & ctrl,
     double amplitude_,
     ndarray::Array<double const,1,1> const & parameters
 ) :
@@ -41,8 +41,8 @@ FitMultiGaussianModel::FitMultiGaussianModel(
     failed(false)
 {}
 
-FitMultiGaussianModel::FitMultiGaussianModel(
-    FitMultiGaussianControl const & ctrl, afw::table::SourceRecord const & source
+FitProfileModel::FitProfileModel(
+    FitProfileControl const & ctrl, afw::table::SourceRecord const & source
 ) :
     profile(ctrl.profile), amplitude(1.0), ellipse(), failed(false)
 {
@@ -56,11 +56,11 @@ FitMultiGaussianModel::FitMultiGaussianModel(
     // TODO: PSF/aperture flux correction
 }
 
-FitMultiGaussianModel::FitMultiGaussianModel(FitMultiGaussianModel const & other) :
+FitProfileModel::FitProfileModel(FitProfileModel const & other) :
     profile(other.profile), amplitude(other.amplitude), ellipse(other.ellipse), failed(other.failed)
 {}
 
-FitMultiGaussianModel & FitMultiGaussianModel::operator=(FitMultiGaussianModel const & other) {
+FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
     if (&other != this) {
         profile = other.profile;
         amplitude = other.amplitude;
@@ -71,7 +71,7 @@ FitMultiGaussianModel & FitMultiGaussianModel::operator=(FitMultiGaussianModel c
 }
 
 
-shapelet::MultiShapeletFunction FitMultiGaussianModel::asMultiShapelet(
+shapelet::MultiShapeletFunction FitProfileModel::asMultiShapelet(
     afw::geom::Point2D const & center
 ) const {
     static double const NORM2 = shapelet::NORMALIZATION * shapelet::NORMALIZATION;
@@ -92,8 +92,8 @@ shapelet::MultiShapeletFunction FitMultiGaussianModel::asMultiShapelet(
     return shapelet::MultiShapeletFunction(elements);
 }
 
-FitMultiGaussianAlgorithm::FitMultiGaussianAlgorithm(
-    FitMultiGaussianControl const & ctrl,
+FitProfileAlgorithm::FitProfileAlgorithm(
+    FitProfileControl const & ctrl,
     afw::table::Schema & schema
 ) :
     algorithms::Algorithm(ctrl),
@@ -105,7 +105,7 @@ FitMultiGaussianAlgorithm::FitMultiGaussianAlgorithm(
 {}
 
 template <typename PixelT>
-void FitMultiGaussianAlgorithm::_apply(
+void FitProfileAlgorithm::_apply(
     afw::table::SourceRecord & source,
     afw::image::Exposure<PixelT> const & exposure,
     afw::geom::Point2D const & center
@@ -114,23 +114,23 @@ void FitMultiGaussianAlgorithm::_apply(
     if (!exposure.hasPsf()) {
         throw LSST_EXCEPT(
             pex::exceptions::LogicErrorException,
-            "Cannot run FitMultiGaussianAlgorithm without a PSF."
+            "Cannot run FitProfileAlgorithm without a PSF."
         );
     }
     // TODO
 }
 
-PTR(algorithms::AlgorithmControl) FitMultiGaussianControl::_clone() const {
-    return boost::make_shared<FitMultiGaussianControl>(*this);
+PTR(algorithms::AlgorithmControl) FitProfileControl::_clone() const {
+    return boost::make_shared<FitProfileControl>(*this);
 }
 
-PTR(algorithms::Algorithm) FitMultiGaussianControl::_makeAlgorithm(
+PTR(algorithms::Algorithm) FitProfileControl::_makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata
 ) const {
-    return boost::make_shared<FitMultiGaussianAlgorithm>(*this, boost::ref(schema));
+    return boost::make_shared<FitProfileAlgorithm>(*this, boost::ref(schema));
 }
 
-LSST_MEAS_ALGORITHM_PRIVATE_IMPLEMENTATION(FitMultiGaussianAlgorithm);
+LSST_MEAS_ALGORITHM_PRIVATE_IMPLEMENTATION(FitProfileAlgorithm);
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

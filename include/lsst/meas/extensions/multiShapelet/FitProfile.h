@@ -20,18 +20,18 @@
  * the GNU General Public License along with this program.  If not, 
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
-#ifndef MULTISHAPELET_FitMultiGaussian_h_INCLUDED
-#define MULTISHAPELET_FitMultiGaussian_h_INCLUDED
+#ifndef MULTISHAPELET_FitProfile_h_INCLUDED
+#define MULTISHAPELET_FitProfile_h_INCLUDED
 
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
-class FitMultiGaussianAlgorithm;
+class FitProfileAlgorithm;
 
 class MultiGaussianObjective;
 
-class FitMultiGaussianControl : public algorithms::AlgorithmControl {
+class FitProfileControl : public algorithms::AlgorithmControl {
 public:
 
     LSST_CONTROL_FIELD(profile, std::string, "Name of a registered multi-Gaussian profile.");
@@ -51,16 +51,16 @@ public:
     LSST_CONTROL_FIELD(growFootprint, int, 
                        "Number of pixels to grow the footprint by.");
 
-    PTR(FitMultiGaussianControl) clone() const {
-        return boost::static_pointer_cast<FitMultiGaussianControl>(_clone());
+    PTR(FitProfileControl) clone() const {
+        return boost::static_pointer_cast<FitProfileControl>(_clone());
     }
 
-    PTR(FitMultiGaussianAlgorithm) makeAlgorithm(
+    PTR(FitProfileAlgorithm) makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)()
     ) const;
     
-    FitMultiGaussianControl() : 
+    FitProfileControl() : 
         algorithms::AlgorithmControl("multishapelet.exp", 2.5), 
         profile("tractor-exponential"), psfName("multishapelet.psf"),
         useShapeletPsfTerms(true), deconvolveShape(true), initialRadiusFactor(1.0),
@@ -87,27 +87,27 @@ private:
  *  registered with the MultiGaussianRegistry class, and are usually approximations to Sersic functions
  *  with the ellipse defined at the half-light radius of the exact Sersic function being approximated.
  */
-struct FitMultiGaussianModel {
+struct FitProfileModel {
 
     std::string profile;
     double amplitude;
     afw::geom::ellipses::Quadrupole ellipse;
     bool failed;  ///< set to true if the measurement failed
 
-    FitMultiGaussianModel(
-        FitMultiGaussianControl const & ctrl,
+    FitProfileModel(
+        FitProfileControl const & ctrl,
         double amplitude,
         ndarray::Array<double const,1,1> const & parameters
     );
 
     /// @brief Construct by extracting saved values from a SourceRecord.
-    FitMultiGaussianModel(FitMultiGaussianControl const & ctrl, afw::table::SourceRecord const & source);
+    FitProfileModel(FitProfileControl const & ctrl, afw::table::SourceRecord const & source);
 
     /// @brief Deep copy constructor.
-    FitMultiGaussianModel(FitMultiGaussianModel const & other);
+    FitProfileModel(FitProfileModel const & other);
 
     /// @brief Deep assignment operator.
-    FitMultiGaussianModel & operator=(FitMultiGaussianModel const & other);
+    FitProfileModel & operator=(FitProfileModel const & other);
 
     /**
      *  @brief Return a MultiShapeletFunction representation of the model (unconvolved).
@@ -118,18 +118,18 @@ struct FitMultiGaussianModel {
 
 };
 
-class FitMultiGaussianAlgorithm : public algorithms::Algorithm {
+class FitProfileAlgorithm : public algorithms::Algorithm {
 public:
 
-    typedef FitMultiGaussianControl Control;
-    typedef FitMultiGaussianModel Model;
+    typedef FitProfileControl Control;
+    typedef FitProfileModel Model;
 
     /// @brief Construct an algorithm instance and register its fields with a Schema.
-    FitMultiGaussianAlgorithm(FitMultiGaussianControl const & ctrl, afw::table::Schema & schema);
+    FitProfileAlgorithm(FitProfileControl const & ctrl, afw::table::Schema & schema);
 
     /// @brief Return the control object
-    FitMultiGaussianControl const & getControl() const {
-        return static_cast<FitMultiGaussianControl const &>(algorithms::Algorithm::getControl());
+    FitProfileControl const & getControl() const {
+        return static_cast<FitProfileControl const &>(algorithms::Algorithm::getControl());
     }
 
     /**
@@ -141,7 +141,7 @@ public:
      */
     template <typename PixelT>
     static PTR(MultiGaussianObjective) makeObjective(
-        FitMultiGaussianControl const & ctrl,
+        FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
         afw::geom::ellipses::Quadrupole const & shape,
         ModelInputHandler const & inputs
@@ -153,7 +153,7 @@ public:
      *  The optimizer's objective function will use only the Gaussian terms in the PSF for the convolution.
      *
      *  This is provided primarily for testing and debugging purposes; the user can create an optimizer,
-     *  step through it, and use the FitMultiGaussianModel constructor that takes a parameter vector to
+     *  step through it, and use the FitProfileModel constructor that takes a parameter vector to
      *  visualize its progress.
      */
     template <typename PixelT>
@@ -173,10 +173,10 @@ public:
      */
     template <typename PixelT>
     static void fitShapeletTerms(
-        FitMultiGaussianControl const & ctrl,
+        FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
         ModelInputHandler const & inputs,
-        FitMultiGaussianModel & model
+        FitProfileModel & model
     );
 
     /**
@@ -189,8 +189,8 @@ public:
      *  @param[in] inputs         Inputs that determine the data to be fit.
      */
     template <typename PixelT>
-    static FitMultiGaussianModel apply(
-        FitMultiGaussianControl const & ctrl,
+    static FitProfileModel apply(
+        FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
         afw::geom::ellipses::Quadrupole const & shape,
         ModelInputHandler const & inputs
@@ -210,8 +210,8 @@ public:
      *                            (i.e. xy0 is used).
      */
     template <typename PixelT>
-    static FitMultiGaussianModel apply(
-        FitMultiGaussianControl const & ctrl,
+    static FitProfileModel apply(
+        FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
         afw::geom::ellipses::Quadrupole const & shape,
         afw::detection::Footprint const & footprint,
@@ -228,19 +228,19 @@ private:
         afw::geom::Point2D const & center
     ) const;
 
-    LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitMultiGaussianAlgorithm);
+    LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitProfileAlgorithm);
 
     afw::table::KeyTuple<afw::table::Flux> _fluxKeys;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
 };
 
-inline PTR(FitMultiGaussianAlgorithm) FitMultiGaussianControl::makeAlgorithm(
+inline PTR(FitProfileAlgorithm) FitProfileControl::makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata
 ) const {
-    return boost::static_pointer_cast<FitMultiGaussianAlgorithm>(_makeAlgorithm(schema, metadata));
+    return boost::static_pointer_cast<FitProfileAlgorithm>(_makeAlgorithm(schema, metadata));
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet
 
-#endif // !MULTISHAPELET_FitMultiGaussian_h_INCLUDED
+#endif // !MULTISHAPELET_FitProfile_h_INCLUDED
