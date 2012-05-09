@@ -33,6 +33,7 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %}
 
 %include "ndarray.i"
+%include "std_vector.i"
 
 %lsst_exceptions()
 %import "lsst/afw/geom/geomLib.i"
@@ -53,6 +54,10 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %template(ModelInputHandler) lsst::meas::extensions::multiShapelet::ModelInputHandler::ModelInputHandler<float>;
 %template(ModelInputHandler) lsst::meas::extensions::multiShapelet::ModelInputHandler::ModelInputHandler<double>;
 
+%include "lsst/meas/extensions/multiShapelet/MultiGaussian.h"
+
+%template(MultiGaussianList) std::vector< lsst::meas::extensions::multiShapelet::MultiGaussianComponent >;
+
 %include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 
 %shared_ptr(lsst::meas::extensions::multiShapelet::Objective);
@@ -61,6 +66,7 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
 
 %shared_ptr(lsst::meas::extensions::multiShapelet::MultiGaussianObjective);
+%returnCopy(lsst::meas::extensions::multiShapelet::MultiGaussianObjective::getInputs);
 %include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {

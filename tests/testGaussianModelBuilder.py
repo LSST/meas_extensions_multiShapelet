@@ -58,8 +58,15 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
         gt = ellipse.getGridTransform()
         xt = gt[LT.XX] * self.xg + gt[LT.XY] * self.yg
         yt = gt[LT.YX] * self.xg + gt[LT.YY] * self.yg
-        model = numpy.exp(-0.5 * (yt**2 + xt**2))
+        model = numpy.exp(-0.5 * (yt**2 + xt**2)) / (ellipse.getArea() * 2.0)
         return model.ravel()
+
+    def evalShapelets(self, func):
+        z = numpy.zeros(self.x.size, dtype=float)
+        ev = func.evaluate()
+        for i in range(self.x.size):
+            z[i] = ev(self.x[i], self.y[i])
+        return z
 
     def buildNumericalDerivative(self, builder, parameters, makeEllipse):
         eps = 1E-6
@@ -81,43 +88,93 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
         self.xg, self.yg = numpy.meshgrid(numpy.linspace(-20, 20, 101), numpy.linspace(-15, 25, 95))
         self.x = self.xg.ravel()
         self.y = self.yg.ravel()
-        self.model = self.buildModel(self.ellipse)
 
     def tearDown(self):
         del self.ellipse
 
-    def testModel(self):
+    def testModel1(self):
         builder = ms.GaussianModelBuilder(self.x, self.y)
         builder.update(self.ellipse)
-        self.assertClose(builder.getModel(), self.model)
+        mgc = ms.MultiGaussianComponent()
+        shapelet = mgc.makeShapelet(ellipses.Ellipse(self.ellipse))
+        z0 = builder.getModel()
+        z1 = self.buildModel(self.ellipse)
+        z2 = self.evalShapelets(shapelet)
+        self.assertClose(z0, z1)
+        self.assertClose(z0, z2)
+
+    def testModel2(self):
+        amplitude = 3.2
+        radius = 2.7
+        mgc = ms.MultiGaussianComponent(amplitude, radius)
+        shapelet = mgc.makeShapelet(ellipses.Ellipse(self.ellipse))
+        builder = ms.GaussianModelBuilder(self.x, self.y, amplitude, radius)
+        builder.update(self.ellipse)
+        self.ellipse.scale(radius)
+        z0 = builder.getModel()
+        z1 = amplitude * self.buildModel(self.ellipse)
+        z2 = self.evalShapelets(shapelet)
+        self.assertClose(z0, z1)
+        self.assertClose(z0, z2)
+        
+    def testModel3(self):
+        amplitude = 3.2
+        radius = 2.7
+        psfEllipse = ellipses.Quadrupole(2.3, 1.8, 0.6)
+        psfAmplitude = 5.3
+        mgc = ms.MultiGaussianComponent(amplitude, radius)
+        shapelet = mgc.makeShapelet(ellipses.Ellipse(self.ellipse))
+        psf = ms.MultiGaussianComponent(psfAmplitude, 1.0).makeShapelet(ellipses.Ellipse(psfEllipse))
+        shapelet = shapelet.convolve(psf)
+        builder = ms.GaussianModelBuilder(self.x, self.y, amplitude, radius, psfEllipse, psfAmplitude)
+        builder.update(self.ellipse)
+        self.ellipse.scale(radius)
+        ellipse = self.ellipse.convolve(psfEllipse)
+        self.assertClose(builder.getModel(), amplitude * psfAmplitude * self.buildModel(ellipse))
+        z0 = builder.getModel()
+        z1 = psfAmplitude * amplitude * self.buildModel(ellipse)
+        z2 = self.evalShapelets(shapelet)
+        self.assertClose(z0, z1)
+        self.assertClose(z0, z2)
 
     def testDerivative1(self):
-        """test derivative with no reparameterization"""
         builder = ms.GaussianModelBuilder(self.x, self.y)
         a = numpy.zeros((3, builder.getSize()), dtype=float).transpose()
-        jac = numpy.identity(3, dtype=float)
         builder.update(self.ellipse)
-        builder.computeDerivative(a, jac)
-        def makeAxesEllipse(p):
+        builder.computeDerivative(a)
+        def makeEllipse(p):
             return ellipses.Axes(*p)
-        n = self.buildNumericalDerivative(builder, self.ellipse.getParameterVector(), makeAxesEllipse)
+        n = self.buildNumericalDerivative(builder, self.ellipse.getParameterVector(), makeEllipse)
         # no hard requirement for tolerances here, but I've dialed them to the max to avoid regressions
-        self.assertClose(a, n, rtol=1E-4, atol=1E-6)
+        self.assertClose(a, n, rtol=1E-15, atol=1E-9)
 
     def testDerivative2(self):
-        """test derivative with nontrivial reparameterization (derivative wrt different core)"""
-        builder = ms.GaussianModelBuilder(self.x, self.y)
+        amplitude = 3.2
+        radius = 2.7
+        builder = ms.GaussianModelBuilder(self.x, self.y, amplitude, radius)
+        a = numpy.zeros((3, builder.getSize()), dtype=float).transpose()
         builder.update(self.ellipse)
-        quad = ellipses.Quadrupole(self.ellipse)
-        jac = self.ellipse.dAssign(quad)
-        a = numpy.zeros((3, builder.getSize()),dtype=float).transpose()
-        builder.update(self.ellipse)
-        builder.computeDerivative(a, jac)
-        def makeQuadrupole(p):
-            return ellipses.Quadrupole(*p)
-        n = self.buildNumericalDerivative(builder, quad.getParameterVector(), makeQuadrupole)
+        builder.computeDerivative(a)
+        def makeEllipse(p):
+            return ellipses.Axes(*p)
+        n = self.buildNumericalDerivative(builder, self.ellipse.getParameterVector(), makeEllipse)
         # no hard requirement for tolerances here, but I've dialed them to the max to avoid regressions
-        self.assertClose(a, n, rtol=1E-4, atol=1E-6)
+        self.assertClose(a, n, rtol=1E-15, atol=1E-9)
+
+    def testDerivative3(self):
+        amplitude = 3.2
+        radius = 2.7
+        psfEllipse = ellipses.Quadrupole(2.3, 1.8, 0.6)
+        psfAmplitude = 5.3
+        builder = ms.GaussianModelBuilder(self.x, self.y, amplitude, radius, psfEllipse, psfAmplitude)
+        a = numpy.zeros((3, builder.getSize()), dtype=float).transpose()
+        builder.update(self.ellipse)
+        builder.computeDerivative(a)
+        def makeEllipse(p):
+            return ellipses.Axes(*p)
+        n = self.buildNumericalDerivative(builder, self.ellipse.getParameterVector(), makeEllipse)
+        # no hard requirement for tolerances here, but I've dialed them to the max to avoid regressions
+        self.assertClose(a, n, rtol=1E-15, atol=1E-9)
 
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

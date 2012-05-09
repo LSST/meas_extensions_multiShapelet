@@ -27,8 +27,10 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 
 GaussianModelBuilder::GaussianModelBuilder(
     ndarray::Array<double const,1,1> const & x,
-    ndarray::Array<double const,1,1> const & y
-) :
+    ndarray::Array<double const,1,1> const & y,
+    double amplitude, double radius, afw::geom::ellipses::Quadrupole const & psfEllipse, double psfAmplitude
+) : _amplitude(amplitude), _psfAmplitude(psfAmplitude), 
+    _scaling(afw::geom::LinearTransform::makeScaling(radius)), _psfEllipse(psfEllipse), 
     _x(x), _y(y), _rx(x.size()), _ry(y.size())
 {
     if (_x.size() != _y.size()) {
@@ -41,35 +43,55 @@ GaussianModelBuilder::GaussianModelBuilder(
 }
 
 GaussianModelBuilder::GaussianModelBuilder(GaussianModelBuilder const & other) :
+    _amplitude(other._amplitude), _psfAmplitude(other._psfAmplitude),
+    _scaling(other._scaling), _psfEllipse(other._psfEllipse),
+    _esn(other._esn), _esnJacobian(other._esnJacobian), _dNorm(other._dNorm),
     _x(other._x), _y(other._y), _rx(other._rx), _ry(other._ry)
 {}
 
 GaussianModelBuilder & GaussianModelBuilder::operator=(GaussianModelBuilder const & other) {
     if (&other != this) {
+        _amplitude = other._amplitude;
+        _psfAmplitude = other._psfAmplitude;
+        _scaling = other._scaling;
+        _psfEllipse = other._psfEllipse;
         _x.reset(other._x.shallow());
         _y.reset(other._y.shallow());
         _rx = other._rx;
         _ry = other._ry;
         _esn = other._esn;
         _esnJacobian = other._esnJacobian;
+        _dNorm = other._dNorm;
         if (!other._model.isEmpty()) _model = ndarray::copy(other._model);
     }
     return *this;
 }
 
 void GaussianModelBuilder::update(afw::geom::ellipses::BaseCore const & core) {
-    _esnJacobian = _esn.update(core);
+    Eigen::Matrix3d scaleJac = core.transform(_scaling).d();
+    PTR(afw::geom::ellipses::BaseCore) ellipse = core.transform(_scaling).copy();
+    Eigen::Matrix3d convJac = ellipse->convolve(_psfEllipse).d();
+    ellipse->convolve(_psfEllipse).inPlace();
+    afw::geom::ellipses::Quadrupole q;
+    Eigen::Matrix3d quadJacobian = q.dAssign(*ellipse) * convJac * scaleJac;
+    _esnJacobian = _esn.update(q) * quadJacobian; 
     if (_model.isEmpty()) {
         _model = ndarray::allocate(_x.size());
     }
     ndarray::EigenView<double,1,1> z(_model);
     _esn(_x, _y, _rx, _ry, z);
-    z.array() = std::exp(-0.5 * z.array());
+    double det = q.getDeterminant();
+    Eigen::RowVector3d dNorm_dq;
+    dNorm_dq[0] = -0.5 * q.getIyy() / det;
+    dNorm_dq[1] = -0.5 * q.getIxx() / det;
+    dNorm_dq[2] = q.getIxy() / det;
+    _dNorm = dNorm_dq * quadJacobian;
+    z.array() = std::exp(-0.5 * z.array()) * (_amplitude * _psfAmplitude) 
+        / (std::sqrt(det) * afw::geom::PI * 2.0);
 }
 
 void GaussianModelBuilder::computeDerivative(
     ndarray::Array<double,2,-1> const & output,
-    Eigen::Matrix<double,3,Eigen::Dynamic> const & jacobian,
     bool add
 ) {
     if (_model.isEmpty()) {
@@ -85,23 +107,15 @@ void GaussianModelBuilder::computeDerivative(
              % output.getSize<0>() % _x.size()).str()
         );
     }
-    if (output.getSize<0>() != _x.size()) {
-        throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
-            (boost::format("Mismatch between array (%d) and Jacobian dimensions (%d)")
-             % output.getSize<1>() % jacobian.cols()).str()
-        );
-    }
     ndarray::EigenView<double,2,-1> out(output);
     if (!add) out.setZero();
-    // Compute derivative wrt ellipse core
-    Eigen::MatrixXd dz_de = Eigen::MatrixXd::Zero(_x.size(), jacobian.cols());
-    Eigen::Matrix<double,3,Eigen::Dynamic> coreJacobian = _esnJacobian * jacobian;
-    _esn.dEllipse(_x, _y, _rx, _ry, coreJacobian, dz_de);
-    for (int n = 0; n < jacobian.cols(); ++n) {
+    Eigen::MatrixXd dz_de = Eigen::MatrixXd::Zero(_x.size(), _esnJacobian.cols());
+    _esn.dEllipse(_x, _y, _rx, _ry, _esnJacobian, dz_de);
+    for (int n = 0; n < _esnJacobian.cols(); ++n) {
         dz_de.col(n).array() *= -0.5 * _model.asEigen<Eigen::ArrayXpr>();
     }
     out += dz_de;
+    out += _model.asEigen() * _dNorm;
 }
 
 void GaussianModelBuilder::setOutput(ndarray::Array<double,1,1> const & array) {

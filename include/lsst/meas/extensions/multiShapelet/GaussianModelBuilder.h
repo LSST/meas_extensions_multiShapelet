@@ -36,7 +36,10 @@ public:
 
     GaussianModelBuilder(
         ndarray::Array<double const,1,1> const & x,
-        ndarray::Array<double const,1,1> const & y
+        ndarray::Array<double const,1,1> const & y,
+        double amplitude=1.0, double radius=1.0,
+        afw::geom::ellipses::Quadrupole const & psfEllipse = afw::geom::ellipses::Quadrupole(0.0, 0.0, 0.0),
+        double psfAmplitude=1.0
     );
     
     GaussianModelBuilder(GaussianModelBuilder const & other);
@@ -51,16 +54,20 @@ public:
 
     void computeDerivative(
         ndarray::Array<double,2,-1> const & output,
-        Eigen::Matrix<double,3,Eigen::Dynamic> const & jacobian,
         bool add = false
     );
 
     void setOutput(ndarray::Array<double,1,1> const & array);
 
 private:
-
+    
+    double _amplitude;
+    double _psfAmplitude;
+    afw::geom::LinearTransform _scaling;
+    afw::geom::ellipses::Quadrupole _psfEllipse;
     EllipseSquaredNorm _esn;
-    Eigen::Matrix<double,3,3> _esnJacobian;
+    Eigen::Matrix3d _esnJacobian;
+    Eigen::RowVector3d _dNorm;
     ndarray::EigenView<double const,1,1> _x;
     ndarray::EigenView<double const,1,1> _y;
     Eigen::VectorXd _rx;

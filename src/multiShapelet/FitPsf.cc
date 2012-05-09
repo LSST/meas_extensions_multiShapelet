@@ -44,23 +44,34 @@ int computeOrder(int size2d) {
 
 } // anonymous
 
+MultiGaussianList FitPsfControl::getComponents() const {
+    MultiGaussianList components;
+    components.push_back(MultiGaussianComponent(1.0, 1.0));
+    components.push_back(MultiGaussianComponent(amplitudeRatio / (radiusRatio * radiusRatio), radiusRatio));
+    return components;
+}
+
 FitPsfModel::FitPsfModel(
     FitPsfControl const & ctrl,
     double amplitude,
     ndarray::Array<double const,1,1> const & parameters
 ) :
-    inner(ndarray::allocate(shapelet::computeSize(ctrl.innerOrder))),
-    outer(ndarray::allocate(shapelet::computeSize(ctrl.outerOrder))),
     ellipse(),
     radiusRatio(ctrl.radiusRatio),
     failed(false)
 {
-    static double const NORM2 = shapelet::NORMALIZATION * shapelet::NORMALIZATION;
-    inner.deep() = 0.0;
-    outer.deep() = 0.0;
+    MultiGaussianList components = ctrl.getComponents();
     ellipse = MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2]);
-    inner[0] = amplitude / NORM2;
-    outer[0] = amplitude * ctrl.amplitudeRatio / NORM2;
+    shapelet::ShapeletFunction innerShapelet = components[0].makeShapelet(
+        afw::geom::ellipses::Ellipse(ellipse), ctrl.innerOrder
+    );
+    inner = innerShapelet.getCoefficients();
+    inner.asEigen() *= amplitude;
+    shapelet::ShapeletFunction outerShapelet = components[1].makeShapelet(
+        afw::geom::ellipses::Ellipse(ellipse), ctrl.outerOrder
+    );
+    outer = outerShapelet.getCoefficients();
+    outer.asEigen() *= amplitude;
 }
 
 FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord const & source) :
@@ -97,7 +108,6 @@ FitPsfModel::FitPsfModel(FitPsfModel const & other) :
     failed(other.failed)
 {}
 
-
 FitPsfModel & FitPsfModel::operator=(FitPsfModel const & other) {
     if (&other != this) {
         inner = ndarray::copy(other.inner);
@@ -115,17 +125,12 @@ shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
 ) const {
     shapelet::MultiShapeletFunction::ElementList elements;
     afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
-    // FIXME: should have data-type cast functionality in ndarray
-    ndarray::Array<shapelet::Pixel,1,1> sInner(ndarray::allocate(inner.getSize<0>()));
-    ndarray::Array<shapelet::Pixel,1,1> sOuter(ndarray::allocate(outer.getSize<0>()));
-    sInner.deep() = inner;
-    sOuter.deep() = outer;
     elements.push_back(
         shapelet::ShapeletFunction(
             computeOrder(inner.getSize<0>()),
             shapelet::HERMITE,
             fullEllipse,
-            sInner
+            inner
         )
     );
     fullEllipse.scale(radiusRatio);
@@ -134,7 +139,7 @@ shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
             computeOrder(outer.getSize<0>()),
             shapelet::HERMITE,
             fullEllipse,
-            sOuter
+            outer
         )
     );
     return shapelet::MultiShapeletFunction(elements);
@@ -166,10 +171,7 @@ PTR(MultiGaussianObjective) FitPsfAlgorithm::makeObjective(
     FitPsfControl const & ctrl,
     ModelInputHandler const & inputs
 ) {
-    MultiGaussianList components;
-    components.push_back(MultiGaussianComponent(1.0, 1.0));
-    components.push_back(MultiGaussianComponent(ctrl.amplitudeRatio, ctrl.radiusRatio));
-    return boost::make_shared<MultiGaussianObjective>(inputs, components);
+    return boost::make_shared<MultiGaussianObjective>(inputs, ctrl.getComponents());
 }
 
 HybridOptimizer FitPsfAlgorithm::makeOptimizer(

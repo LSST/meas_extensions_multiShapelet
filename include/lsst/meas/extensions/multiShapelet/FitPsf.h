@@ -28,6 +28,7 @@
 #include "lsst/shapelet.h"
 #include "lsst/afw/detection/Psf.h"
 #include "lsst/meas/algorithms/Algorithm.h"
+#include "lsst/meas/extensions/multiShapelet/MultiGaussian.h"
 #include "lsst/meas/extensions/multiShapelet/ModelInputHandler.h"
 #include "lsst/meas/extensions/multiShapelet/HybridOptimizer.h"
 
@@ -57,6 +58,8 @@ public:
         PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)()
     ) const;
     
+    MultiGaussianList getComponents() const;
+
     FitPsfControl() : 
         algorithms::AlgorithmControl("multishapelet.psf", 2.0), 
         innerOrder(6), outerOrder(6), radiusRatio(2.0), amplitudeRatio(0.1), initialRadius(1.5)
@@ -81,8 +84,8 @@ private:
  */
 struct FitPsfModel {
 
-    ndarray::Array<float,1,1> inner; ///< shapelet coefficients of inner expansion
-    ndarray::Array<float,1,1> outer; ///< shapelet coefficients of outer expansion
+    ndarray::Array<double,1,1> inner; ///< shapelet coefficients of inner expansion
+    ndarray::Array<double,1,1> outer; ///< shapelet coefficients of outer expansion
     afw::geom::ellipses::Quadrupole ellipse; ///< ellipse corresponding to inner expansion
     double radiusRatio; ///< radius of outer expansion divided by radius of inner expansion (fixed)
     bool failed;  ///< set to true if the measurement failed

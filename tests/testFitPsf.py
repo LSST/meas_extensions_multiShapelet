@@ -43,6 +43,8 @@ import lsst.afw.image
 import lsst.afw.detection
 import lsst.meas.extensions.multiShapelet as ms
 
+from matplotlib import pyplot
+
 numpy.random.seed(5)
 numpy.set_printoptions(linewidth=120)
 
@@ -56,6 +58,7 @@ class FitPsfTestCase(unittest.TestCase):
     def testObjective(self):
         eps = 1E-6
         ctrl = ms.FitPsfControl()
+        ctrl.amplitudeRatio = 0.0
         image = lsst.afw.image.ImageD(5, 5)
         nParameters = 3
         nData = image.getBBox().getArea()
@@ -71,12 +74,14 @@ class FitPsfTestCase(unittest.TestCase):
         for i in range(nTests):
             f0 = numpy.zeros(nData, dtype=float)
             obj.computeFunction(parameters[i,:], f0)
+            f1 = obj.getModel() * obj.getAmplitude() - inputs.getData()
             model = ms.FitPsfModel(ctrl, obj.getAmplitude(), parameters[i,:])
             mImage = lsst.afw.image.ImageD(5, 5)
             multiShapeletFunc = model.asMultiShapelet(center)
             multiShapeletFunc.evaluate().addToImage(mImage)
-            f1 = (mImage.getArray() - image.getArray()).ravel()
+            f2 = (mImage.getArray().ravel() - inputs.getData())
             self.assertClose(f0, f1)
+            self.assertClose(f0, f2)
             d0 = numpy.zeros((nParameters, nData), dtype=float).transpose()
             d1 = numpy.zeros((nParameters, nData), dtype=float).transpose()
             obj.computeDerivative(parameters[i,:], f0, d0)

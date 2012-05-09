@@ -48,14 +48,14 @@ class TractorMultiGaussian(object):
 
     def __init__(self, amplitude, variance):
         self.sigma = variance**0.5
-        # Tractor uses integrated amplitude of each component, but I use peak value here.
-        self.amplitude = amplitude / (2.0 * numpy.pi * self.sigma**2)
+        self.amplitude = amplitude
 
     def __call__(self, r):
         return self.decompose(r).sum(axis=1)
 
     def decompose(self, r):
-        return numpy.exp(-0.5 * (numpy.divide.outer(r, self.sigma))**2) * self.amplitude
+        return numpy.exp(-0.5 * (numpy.divide.outer(r, self.sigma))**2) * self.amplitude \
+            / (2.0 * numpy.pi * self.sigma**2)
 
 tractorExponential = TractorMultiGaussian(
     amplitude = numpy.array([3.31636565e-05, 1.06478564e-03, 1.33260624e-02, 1.06217866e-01,

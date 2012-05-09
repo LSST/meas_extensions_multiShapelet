@@ -25,6 +25,41 @@
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
+MultiGaussianObjective::MultiGaussianObjective(
+    ModelInputHandler const & inputs,
+    MultiGaussianList const & components
+) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
+    _ellipse(), _inputs(inputs), _model(ndarray::allocate(inputs.getSize()))
+{
+    _builders.reserve(components.size());
+    for (MultiGaussianList::const_iterator i = components.begin(); i != components.end(); ++i) {
+        _builders.push_back(GaussianModelBuilder(_inputs.getX(), _inputs.getY(), i->amplitude, i->radius));
+    }
+}
+
+MultiGaussianObjective::MultiGaussianObjective(
+    ModelInputHandler const & inputs,
+    MultiGaussianList const & components,
+    MultiGaussianList const & psfComponents,
+    afw::geom::ellipses::Quadrupole const & psfEllipse
+) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
+    _ellipse(), _inputs(inputs), _model(ndarray::allocate(inputs.getSize()))
+{
+    _builders.reserve(components.size() * psfComponents.size());
+    for (MultiGaussianList::const_iterator j = psfComponents.begin(); j != psfComponents.end(); ++j) {
+        afw::geom::ellipses::Quadrupole psfComponentEllipse(psfEllipse);
+        psfComponentEllipse.scale(j->radius);
+        for (MultiGaussianList::const_iterator i = components.begin(); i != components.end(); ++i) {
+            _builders.push_back(
+                GaussianModelBuilder(
+                    _inputs.getX(), _inputs.getY(), i->amplitude, i->radius,
+                    psfComponentEllipse, j->amplitude
+                )
+            );
+        }
+    }
+}
+
 void MultiGaussianObjective::computeFunction(
     ndarray::Array<double const,1,1> const & parameters, 
     ndarray::Array<double,1,1> const & function
@@ -33,10 +68,8 @@ void MultiGaussianObjective::computeFunction(
     ndarray::EigenView<double,1,1> model(_model);
     model.setZero();
     for (std::size_t n = 0; n < _builders.size(); ++n) {
-        _ellipse.scale(_components[n].radius);
         _builders[n].update(_ellipse);
-        model += _components[n].amplitude * _builders[n].getModel().asEigen();
-        _ellipse.scale(1.0 / _components[n].radius);
+        model += _builders[n].getModel().asEigen();
     }
     if (!_inputs.getWeights().isEmpty()) {
         model.array() *= _inputs.getWeights().asEigen<Eigen::ArrayXpr>();
@@ -52,13 +85,8 @@ void MultiGaussianObjective::computeDerivative(
     ndarray::Array<double,2,-2> const & derivative
 ) {
     derivative.asEigen().setZero();
-    Eigen::Matrix3d jacobian;
     for (std::size_t n = 0; n < _builders.size(); ++n) {
-        afw::geom::LinearTransform scaling = afw::geom::LinearTransform::makeScaling(_components[n].radius);
-        jacobian = _ellipse.transform(scaling).d() * _components[n].amplitude;
-        _ellipse.scale(_components[n].radius);
-        _builders[n].computeDerivative(derivative, jacobian, true);
-        _ellipse.scale(1.0 /_components[n].radius);
+        _builders[n].computeDerivative(derivative, true);
     }
     if (!_inputs.getWeights().isEmpty()) {
         derivative.asEigen<Eigen::ArrayXpr>() 
@@ -73,29 +101,5 @@ void MultiGaussianObjective::computeDerivative(
     derivative.asEigen() *= _amplitude;
     derivative.asEigen() += _model.asEigen() * dAmplitude.transpose();
 }
-
-MultiGaussianObjective::MultiGaussianObjective(
-    ModelInputHandler const & inputs,
-    MultiGaussianList const & components
-) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
-    _ellipse(), _psfEllipse(0.0, 0.0, 0.0),
-    _components(components), _psfComponents(1, MultiGaussianComponent(1.0, 1.0)),
-    _inputs(inputs),
-    _builders(components.size(), GaussianModelBuilder(inputs.getX(), inputs.getY())), 
-    _model(ndarray::allocate(inputs.getSize()))
-{}
-
-MultiGaussianObjective::MultiGaussianObjective(
-    ModelInputHandler const & inputs,
-    MultiGaussianList const & components,
-    MultiGaussianList const & psfComponents,
-    afw::geom::ellipses::Quadrupole const & psfEllipse
-) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
-    _ellipse(), _psfEllipse(psfEllipse),
-    _components(components), _psfComponents(psfComponents),
-    _inputs(inputs),
-    _builders(components.size(), GaussianModelBuilder(inputs.getX(), inputs.getY())), // TODO
-    _model(ndarray::allocate(inputs.getSize()))
-{}
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

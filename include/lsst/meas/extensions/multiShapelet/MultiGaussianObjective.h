@@ -48,9 +48,9 @@ public:
 
     double getAmplitude() const { return _amplitude; }
     
-    ModelInputHandler const & getInputs() const { return _inputs; }
+    ndarray::Array<double const,1,1> getModel() const { return _model; }
 
-#ifndef SWIG // Don't need to create this class from Python, just use it.
+    ModelInputHandler const & getInputs() const { return _inputs; }
 
     MultiGaussianObjective(
         ModelInputHandler const & inputs,
@@ -64,8 +64,6 @@ public:
         afw::geom::ellipses::Quadrupole const & psfEllipse
     );
 
-#endif
-
 private:
 
     typedef std::vector<GaussianModelBuilder> BuilderList;
@@ -73,9 +71,6 @@ private:
     double _amplitude;
     double _modelSquaredNorm;
     EllipseCore _ellipse;
-    EllipseCore _psfEllipse;
-    MultiGaussianList _components;
-    MultiGaussianList _psfComponents;
     ModelInputHandler _inputs;
     BuilderList _builders;
     ndarray::Array<double,1,1> _model;
