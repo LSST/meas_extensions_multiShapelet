@@ -47,7 +47,7 @@ int computeOrder(int size2d) {
 MultiGaussianList FitPsfControl::getComponents() const {
     MultiGaussianList components;
     components.push_back(MultiGaussianComponent(1.0, 1.0));
-    components.push_back(MultiGaussianComponent(amplitudeRatio / (radiusRatio * radiusRatio), radiusRatio));
+    components.push_back(MultiGaussianComponent(peakRatio * radiusRatio * radiusRatio, radiusRatio));
     return components;
 }
 
@@ -119,6 +119,14 @@ FitPsfModel & FitPsfModel::operator=(FitPsfModel const & other) {
     return *this;
 }
 
+MultiGaussianList FitPsfModel::getComponents() const {
+    MultiGaussianList components;
+    components.push_back(MultiGaussianComponent(1.0, 1.0));
+    components.back().readShapeletAmplitude(inner[0], ellipse);
+    components.push_back(MultiGaussianComponent(1.0, radiusRatio));
+    components.back().readShapeletAmplitude(outer[0], ellipse);
+    return components;
+}
 
 shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
     afw::geom::Point2D const & center

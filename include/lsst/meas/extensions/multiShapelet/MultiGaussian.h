@@ -36,21 +36,11 @@ struct MultiGaussianComponent {
 
     typedef std::vector<MultiGaussianComponent> List;
 
-    shapelet::ShapeletFunction makeShapelet(afw::geom::ellipses::Ellipse const & ellipse, int order=0) {
-        static double FACTOR = 1.0 / (shapelet::NORMALIZATION * shapelet::NORMALIZATION * 2.0);
-        shapelet::ShapeletFunction result(order=0, shapelet::HERMITE, ellipse);
-        result.getEllipse().getCore().scale(radius);
-        result.getCoefficients()[0] = amplitude * FACTOR / result.getEllipse().getCore().getArea();
-        return result;
-    }
+    shapelet::ShapeletFunction makeShapelet(afw::geom::ellipses::Ellipse const & ellipse, int order=0) const;
 
-    static double integrate(List const & components) {
-        double flux = 0.0;
-        for (List::const_iterator i = components.begin(); i != components.end(); ++i) {
-            flux += i->amplitude;
-        }
-        return flux;
-    }
+    void readShapeletAmplitude(double coeff0, afw::geom::ellipses::BaseCore const & ellipse);
+    
+    static double integrate(List const & components);
 
     explicit MultiGaussianComponent(double amplitude_=1.0, double radius_=1.0) 
         : amplitude(amplitude_), radius(radius_) {}

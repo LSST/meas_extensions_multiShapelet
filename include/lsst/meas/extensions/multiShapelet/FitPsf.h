@@ -44,8 +44,8 @@ public:
     LSST_CONTROL_FIELD(innerOrder, int, "Shapelet order of inner expansion (0 == Gaussian)");
     LSST_CONTROL_FIELD(outerOrder, int, "Shapelet order of outer expansion (0 == Gaussian)");
     LSST_CONTROL_FIELD(radiusRatio, double, "outer radius divided by inner radius (fixed)");
-    LSST_CONTROL_FIELD(amplitudeRatio, double, 
-                       "outer Gaussian amplitude divided by inner Gaussian amplitude;"
+    LSST_CONTROL_FIELD(peakRatio, double, 
+                       "outer Gaussian peak height divided by inner Gaussian peak height;"
                        " held fixed in double-Gaussian ellipse fit, then allowed to vary"
                        " when shapelets coefficients are fit and ellipses are held fixed."
     );
@@ -55,17 +55,21 @@ public:
 
     PTR(FitPsfAlgorithm) makeAlgorithm(
         afw::table::Schema & schema,
-        PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)()
+        PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)(),
+        algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
     ) const;
     
     MultiGaussianList getComponents() const;
 
     FitPsfControl() : 
         algorithms::AlgorithmControl("multishapelet.psf", 2.0), 
-        innerOrder(6), outerOrder(6), radiusRatio(2.0), amplitudeRatio(0.1), initialRadius(1.5)
+        innerOrder(6), outerOrder(6), radiusRatio(2.0), peakRatio(0.1), initialRadius(1.5)
     {}
 
 private:
+
+    using algorithms::AlgorithmControl::_makeAlgorithm;
+
     virtual PTR(algorithms::AlgorithmControl) _clone() const;
     virtual PTR(algorithms::Algorithm) _makeAlgorithm(
         afw::table::Schema & schema, PTR(daf::base::PropertyList) const & metadata
@@ -100,7 +104,9 @@ struct FitPsfModel {
      *  we can inspect the optimizer at each step in Python.
      */
     FitPsfModel(
-        FitPsfControl const & ctrl, double amplitude, ndarray::Array<double const,1,1> const & parameters
+        FitPsfControl const & ctrl,
+        double amplitude,
+        ndarray::Array<double const,1,1> const & parameters
     );
 
     /// @brief Construct by extracting saved values from a SourceRecord.
@@ -111,6 +117,8 @@ struct FitPsfModel {
 
     /// @brief Deep assignment operator.
     FitPsfModel & operator=(FitPsfModel const & other);
+    
+    MultiGaussianList getComponents() const;
 
     /**
      *  @brief Return a MultiShapeletFunction representation of the model.
@@ -214,9 +222,10 @@ private:
 
 inline PTR(FitPsfAlgorithm) FitPsfControl::makeAlgorithm(
     afw::table::Schema & schema,
-    PTR(daf::base::PropertyList) const & metadata
+    PTR(daf::base::PropertyList) const & metadata,
+    algorithms::AlgorithmControlMap const & others
 ) const {
-    return boost::static_pointer_cast<FitPsfAlgorithm>(_makeAlgorithm(schema, metadata));
+    return boost::static_pointer_cast<FitPsfAlgorithm>(_makeAlgorithm(schema, metadata, others));
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

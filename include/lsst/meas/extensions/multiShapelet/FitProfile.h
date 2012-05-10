@@ -24,12 +24,11 @@
 #define MULTISHAPELET_FitProfile_h_INCLUDED
 
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
+#include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
 class FitProfileAlgorithm;
-
-class MultiGaussianObjective;
 
 class FitProfileControl : public algorithms::AlgorithmControl {
 public:
@@ -57,9 +56,12 @@ public:
 
     PTR(FitProfileAlgorithm) makeAlgorithm(
         afw::table::Schema & schema,
-        PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)()
+        PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)(),
+        algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
     ) const;
-    
+        
+    MultiGaussianList const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
+
     FitProfileControl() : 
         algorithms::AlgorithmControl("multishapelet.exp", 2.5), 
         profile("tractor-exponential"), psfName("multishapelet.psf"),
@@ -75,7 +77,9 @@ public:
 private:
     virtual PTR(algorithms::AlgorithmControl) _clone() const;
     virtual PTR(algorithms::Algorithm) _makeAlgorithm(
-        afw::table::Schema & schema, PTR(daf::base::PropertyList) const & metadata
+        afw::table::Schema & schema,
+        PTR(daf::base::PropertyList) const & metadata,
+        algorithms::AlgorithmControlMap const & other
     ) const;
 };
 
@@ -89,9 +93,10 @@ private:
  */
 struct FitProfileModel {
 
-    std::string profile;
-    double amplitude;
-    afw::geom::ellipses::Quadrupole ellipse;
+    std::string profile; ///< name of profile to look up in MultiGaussianRegistry
+    double amplitude; ///< surface brightness at half-light radius
+    double amplitudeErr; ///< uncertainty on amplitude
+    afw::geom::ellipses::Quadrupole ellipse; ///< half-light radius ellipse
     bool failed;  ///< set to true if the measurement failed
 
     FitProfileModel(
@@ -125,7 +130,11 @@ public:
     typedef FitProfileModel Model;
 
     /// @brief Construct an algorithm instance and register its fields with a Schema.
-    FitProfileAlgorithm(FitProfileControl const & ctrl, afw::table::Schema & schema);
+    FitProfileAlgorithm(
+        FitProfileControl const & ctrl,
+        afw::table::Schema & schema,
+        algorithms::AlgorithmControlMap const & others
+    );
 
     /// @brief Return the control object
     FitProfileControl const & getControl() const {
@@ -139,7 +148,6 @@ public:
      *
      *  This is provided primarily for testing and debugging purposes.
      */
-    template <typename PixelT>
     static PTR(MultiGaussianObjective) makeObjective(
         FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
@@ -156,7 +164,6 @@ public:
      *  step through it, and use the FitProfileModel constructor that takes a parameter vector to
      *  visualize its progress.
      */
-    template <typename PixelT>
     static HybridOptimizer makeOptimizer(
         FitPsfControl const & ctrl,
         FitPsfModel const & psfModel,
@@ -171,7 +178,6 @@ public:
      *  This is provided primarily for testing and debugging purposes; it is the second
      *  part of apply(), after the nonlinear double-Gaussian fit.
      */
-    template <typename PixelT>
     static void fitShapeletTerms(
         FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
@@ -188,7 +194,6 @@ public:
      *                            (interpreted as defined by ctrl data members).
      *  @param[in] inputs         Inputs that determine the data to be fit.
      */
-    template <typename PixelT>
     static FitProfileModel apply(
         FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
@@ -230,15 +235,19 @@ private:
 
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitProfileAlgorithm);
 
-    afw::table::KeyTuple<afw::table::Flux> _fluxKeys;
+    afw::table::Key< double > _amplitudeKey;
+    afw::table::Key< double > _amplitudeErrKey;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
+    afw::table::Key< afw::table::Flag > _flagKey;
+    CONST_PTR(FitPsfControl) _psfCtrl;
 };
 
 inline PTR(FitProfileAlgorithm) FitProfileControl::makeAlgorithm(
     afw::table::Schema & schema,
-    PTR(daf::base::PropertyList) const & metadata
+    PTR(daf::base::PropertyList) const & metadata,
+    algorithms::AlgorithmControlMap const & others
 ) const {
-    return boost::static_pointer_cast<FitProfileAlgorithm>(_makeAlgorithm(schema, metadata));
+    return boost::static_pointer_cast<FitProfileAlgorithm>(_makeAlgorithm(schema, metadata, others));
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

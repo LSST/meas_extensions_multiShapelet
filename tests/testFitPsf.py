@@ -58,7 +58,6 @@ class FitPsfTestCase(unittest.TestCase):
     def testObjective(self):
         eps = 1E-6
         ctrl = ms.FitPsfControl()
-        ctrl.amplitudeRatio = 0.0
         image = lsst.afw.image.ImageD(5, 5)
         nParameters = 3
         nData = image.getBBox().getArea()
@@ -76,12 +75,23 @@ class FitPsfTestCase(unittest.TestCase):
             obj.computeFunction(parameters[i,:], f0)
             f1 = obj.getModel() * obj.getAmplitude() - inputs.getData()
             model = ms.FitPsfModel(ctrl, obj.getAmplitude(), parameters[i,:])
-            mImage = lsst.afw.image.ImageD(5, 5)
+            self.assertClose(model.outer[0], ctrl.peakRatio * model.inner[0])
+            self.assertEqual(model.radiusRatio, ctrl.radiusRatio)
+            image2 = lsst.afw.image.ImageD(5, 5)
             multiShapeletFunc = model.asMultiShapelet(center)
-            multiShapeletFunc.evaluate().addToImage(mImage)
-            f2 = (mImage.getArray().ravel() - inputs.getData())
+            multiShapeletFunc.evaluate().addToImage(image2)
+            f2 = (image2.getArray().ravel() - inputs.getData())
+            components = model.getComponents()
+            builder1 = ms.GaussianModelBuilder(inputs.getX(), inputs.getY(),
+                                               components[0].amplitude, components[0].radius)
+            builder2 = ms.GaussianModelBuilder(inputs.getX(), inputs.getY(),
+                                               components[1].amplitude, components[1].radius)
+            builder1.update(model.ellipse)
+            builder2.update(model.ellipse)
+            f3 = builder1.getModel() + builder2.getModel() - inputs.getData()
             self.assertClose(f0, f1)
             self.assertClose(f0, f2)
+            self.assertClose(f0, f3)
             d0 = numpy.zeros((nParameters, nData), dtype=float).transpose()
             d1 = numpy.zeros((nParameters, nData), dtype=float).transpose()
             obj.computeDerivative(parameters[i,:], f0, d0)
