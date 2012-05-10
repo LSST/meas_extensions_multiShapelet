@@ -31,7 +31,7 @@
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
 struct MultiGaussianComponent {
-    double amplitude;
+    double flux;
     double radius;
 
     typedef std::vector<MultiGaussianComponent> List;
@@ -42,8 +42,8 @@ struct MultiGaussianComponent {
     
     static double integrate(List const & components);
 
-    explicit MultiGaussianComponent(double amplitude_=1.0, double radius_=1.0) 
-        : amplitude(amplitude_), radius(radius_) {}
+    explicit MultiGaussianComponent(double flux_=1.0, double radius_=1.0) 
+        : flux(flux_), radius(radius_) {}
 };
 
 typedef std::vector<MultiGaussianComponent> MultiGaussianList;

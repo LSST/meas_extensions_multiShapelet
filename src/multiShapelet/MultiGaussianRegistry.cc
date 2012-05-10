@@ -80,20 +80,28 @@ void MultiGaussianRegistry::insert(std::string const & name, MultiGaussianList c
 
 void MultiGaussianRegistry::insert(
     std::string const & name,
-    ndarray::Array<double const,1> const & amplitudes,
-    ndarray::Array<double const,1> const & radii
+    ndarray::Array<double const,1> const & fluxes,
+    ndarray::Array<double const,1> const & radii,
+    bool normalize
 ) {
-    if (amplitudes.getSize<0>() != radii.getSize<0>()) {
+    if (fluxes.getSize<0>() != radii.getSize<0>()) {
         throw LSST_EXCEPT(
             pex::exceptions::LengthErrorException,
-            (boost::format("amplitude array size (%d) does not match radius array size (%d)") %
-             amplitudes.getSize<0>() % radii.getSize<0>()).str()
+            (boost::format("flux array size (%d) does not match radius array size (%d)") %
+             fluxes.getSize<0>() % radii.getSize<0>()).str()
         );
     }
     MultiGaussianList components;
-    components.reserve(amplitudes.getSize<0>());
-    for (int n = 0; n < amplitudes.getSize<0>(); ++n) {
-        components.push_back(MultiGaussianComponent(amplitudes[n], radii[n]));
+    components.reserve(fluxes.getSize<0>());
+    double totalFlux = 0.0;
+    for (int n = 0; n < fluxes.getSize<0>(); ++n) {
+        components.push_back(MultiGaussianComponent(fluxes[n], radii[n]));
+        totalFlux += fluxes[n];
+    }
+    if (normalize) {
+        for (int n = 0; n < fluxes.getSize<0>(); ++n) {
+            components[n].flux /= totalFlux;
+        }
     }
     insert(name, components);
 }

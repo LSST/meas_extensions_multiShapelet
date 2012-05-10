@@ -46,26 +46,26 @@ def sdssExponential(r):
 
 class TractorMultiGaussian(object):
 
-    def __init__(self, amplitude, variance):
+    def __init__(self, flux, variance):
         self.sigma = variance**0.5
-        self.amplitude = amplitude
+        self.flux = flux
 
     def __call__(self, r):
         return self.decompose(r).sum(axis=1)
 
     def decompose(self, r):
-        return numpy.exp(-0.5 * (numpy.divide.outer(r, self.sigma))**2) * self.amplitude \
+        return numpy.exp(-0.5 * (numpy.divide.outer(r, self.sigma))**2) * self.flux \
             / (2.0 * numpy.pi * self.sigma**2)
 
 tractorExponential = TractorMultiGaussian(
-    amplitude = numpy.array([3.31636565e-05, 1.06478564e-03, 1.33260624e-02, 1.06217866e-01,
+    flux = numpy.array([3.31636565e-05, 1.06478564e-03, 1.33260624e-02, 1.06217866e-01,
                              6.09924868e-01, 2.43600369e+00, 5.34553250e+00, 3.41379672e+00]),
     variance = numpy.array([4.91509189e-05, 7.91283025e-04, 5.06909854e-03, 2.30018199e-02,
                             8.50523831e-02, 2.73398885e-01, 7.93675135e-01, 2.17065603e+00]),
 )
 
 tractorDeVaucouleur = TractorMultiGaussian(
-    amplitude = numpy.array([1.36305372e-02, 1.08889599e-01, 3.68235229e-01, 9.26647361e-01,
+    flux = numpy.array([1.36305372e-02, 1.08889599e-01, 3.68235229e-01, 9.26647361e-01,
                              2.00002437e+00, 3.77384257e+00, 6.01053703e+00, 7.22968202e+00]),
     variance = numpy.array([1.34654444e-04, 5.04128747e-04, 1.88518562e-03, 7.20439754e-03,
                             2.87959626e-02, 1.25118904e-01, 6.38235086e-01, 4.76437813e+00]),
@@ -119,8 +119,8 @@ def plotFull(exact, sdss, tractor, yMaxLog, yMaxLinear):
 
 def saveTractorProfiles(filename):
     d = {
-        "tractor-devaucouleur": (tractorDeVaucouleur.amplitude,  tractorDeVaucouleur.sigma),
-        "tractor-exponential": (tractorExponential.amplitude, tractorExponential.sigma),
+        "tractor-devaucouleur": (tractorDeVaucouleur.flux,  tractorDeVaucouleur.sigma),
+        "tractor-exponential": (tractorExponential.flux, tractorExponential.sigma),
         }
     import cPickle
     with open(filename, 'w') as f:

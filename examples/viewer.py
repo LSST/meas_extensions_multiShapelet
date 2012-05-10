@@ -20,7 +20,7 @@ class FitPsfViewer(object):
             self.gNorm = opt.getGradientInfNorm()
             self.amplitude = obj.getAmplitude()
             self.method = opt.getMethod()
-            self.model = ms.FitPsfModel(viewer.ctrl, self.amplitude, self.parameters)
+            self.model = ms.FitPsfModel(viewer.ctrl, self.flux, self.parameters)
 
         def __str__(self):
             return "state=0x%1.2x, method=%s, chisq=%f, fNorm=%g, gNorm=%g, amplitude=%s, parameters=%s" % (

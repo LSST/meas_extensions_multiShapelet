@@ -28,8 +28,8 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 GaussianModelBuilder::GaussianModelBuilder(
     ndarray::Array<double const,1,1> const & x,
     ndarray::Array<double const,1,1> const & y,
-    double amplitude, double radius, afw::geom::ellipses::Quadrupole const & psfEllipse, double psfAmplitude
-) : _amplitude(amplitude), _psfAmplitude(psfAmplitude), 
+    double flux, double radius, afw::geom::ellipses::Quadrupole const & psfEllipse, double psfAmplitude
+) : _flux(flux), _psfAmplitude(psfAmplitude), 
     _scaling(afw::geom::LinearTransform::makeScaling(radius)), _psfEllipse(psfEllipse), 
     _x(x), _y(y), _rx(x.size()), _ry(y.size())
 {
@@ -43,7 +43,7 @@ GaussianModelBuilder::GaussianModelBuilder(
 }
 
 GaussianModelBuilder::GaussianModelBuilder(GaussianModelBuilder const & other) :
-    _amplitude(other._amplitude), _psfAmplitude(other._psfAmplitude),
+    _flux(other._flux), _psfAmplitude(other._psfAmplitude),
     _scaling(other._scaling), _psfEllipse(other._psfEllipse),
     _esn(other._esn), _esnJacobian(other._esnJacobian), _dNorm(other._dNorm),
     _x(other._x), _y(other._y), _rx(other._rx), _ry(other._ry)
@@ -51,7 +51,7 @@ GaussianModelBuilder::GaussianModelBuilder(GaussianModelBuilder const & other) :
 
 GaussianModelBuilder & GaussianModelBuilder::operator=(GaussianModelBuilder const & other) {
     if (&other != this) {
-        _amplitude = other._amplitude;
+        _flux = other._flux;
         _psfAmplitude = other._psfAmplitude;
         _scaling = other._scaling;
         _psfEllipse = other._psfEllipse;
@@ -86,7 +86,7 @@ void GaussianModelBuilder::update(afw::geom::ellipses::BaseCore const & core) {
     dNorm_dq[1] = -0.5 * q.getIxx() / det;
     dNorm_dq[2] = q.getIxy() / det;
     _dNorm = dNorm_dq * quadJacobian;
-    z.array() = std::exp(-0.5 * z.array()) * (_amplitude * _psfAmplitude) 
+    z.array() = std::exp(-0.5 * z.array()) * (_flux * _psfAmplitude) 
         / (std::sqrt(det) * afw::geom::PI * 2.0);
 }
 

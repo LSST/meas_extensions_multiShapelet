@@ -8,7 +8,7 @@ shapelet::ShapeletFunction MultiGaussianComponent::makeShapelet(
     static double const FACTOR = 1.0 / (shapelet::NORMALIZATION * shapelet::NORMALIZATION * 2.0);
     shapelet::ShapeletFunction result(order=0, shapelet::HERMITE, ellipse);
     result.getEllipse().getCore().scale(radius);
-    result.getCoefficients()[0] = amplitude * FACTOR / result.getEllipse().getCore().getArea();
+    result.getCoefficients()[0] = flux * FACTOR / result.getEllipse().getCore().getArea();
     return result;
 }
 
@@ -17,14 +17,14 @@ void MultiGaussianComponent::readShapeletAmplitude(
 ) {
     static double const FACTOR = shapelet::NORMALIZATION * shapelet::NORMALIZATION * 2.0;
     double area = ellipse.getArea() * radius * radius;
-    amplitude *= coeff0 * area * FACTOR;
+    flux *= coeff0 * area * FACTOR;
 }
 
 
 double MultiGaussianComponent::integrate(List const & components) {
     double flux = 0.0;
     for (List::const_iterator i = components.begin(); i != components.end(); ++i) {
-        flux += i->amplitude;
+        flux += i->flux;
     }
     return flux;
 }

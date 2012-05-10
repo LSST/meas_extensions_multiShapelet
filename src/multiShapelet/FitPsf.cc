@@ -205,14 +205,18 @@ void FitPsfAlgorithm::fitShapeletTerms(
     int innerCoeffs = shapelet::computeSize(ctrl.innerOrder);
     int outerCoeffs = shapelet::computeSize(ctrl.outerOrder);
     ndarray::Array<double,2,-2> matrix = ndarray::allocate(inputs.getSize(), innerCoeffs + outerCoeffs);
-    shapelet::ModelBuilder innerShapelets(ctrl.innerOrder, inputs.getX(), inputs.getY());
-    shapelet::ModelBuilder outerShapelets(ctrl.outerOrder, inputs.getX(), inputs.getY());
-    innerShapelets.update(model.ellipse);
+    matrix.asEigen().setZero();
+    shapelet::ModelBuilder builder(inputs.getX(), inputs.getY());
+    builder.update(model.ellipse);
+    builder.addModelMatrix(ctrl.innerOrder, matrix[ndarray::view()(0, innerCoeffs)]);
     model.ellipse.scale(ctrl.radiusRatio);
-    outerShapelets.update(model.ellipse);
+    builder.update(model.ellipse);
     model.ellipse.scale(1.0 / ctrl.radiusRatio);
-    matrix[ndarray::view()(0, innerCoeffs)] = innerShapelets.getModel();
-    matrix[ndarray::view()(innerCoeffs, innerCoeffs + outerCoeffs)] = outerShapelets.getModel();
+    builder.addModelMatrix(ctrl.outerOrder, matrix[ndarray::view()(innerCoeffs, innerCoeffs + outerCoeffs)]);
+    if (!inputs.getWeights().isEmpty()) {
+        matrix.asEigen<Eigen::ArrayXpr>() 
+            *= (inputs.getWeights().asEigen() * Eigen::RowVectorXd::Ones(matrix.getSize<1>())).array();
+    }
     afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
     model.inner.deep() = lstsq.getSolution()[ndarray::view(0, innerCoeffs)];
     model.outer.deep() = lstsq.getSolution()[ndarray::view(innerCoeffs, innerCoeffs + outerCoeffs)];
@@ -222,11 +226,6 @@ FitPsfModel FitPsfAlgorithm::apply(
     FitPsfControl const & ctrl,
     ModelInputHandler const & inputs
 ) {
-    // First, we fit an elliptical double-Gaussian with fixed radius and amplitude ratios;
-    // the free parameters are the amplitude and ellipse core of the inner component.
-    // We intentionally separate these steps into public functions so we can reproduce
-    // the same results with a pure-Python implementation that lets us visualize what's
-    // going on.
     HybridOptimizer opt = makeOptimizer(ctrl, inputs);
     opt.run();
     Model model(

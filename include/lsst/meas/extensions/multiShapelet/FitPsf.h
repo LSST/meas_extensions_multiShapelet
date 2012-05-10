@@ -98,7 +98,7 @@ struct FitPsfModel {
      *  @brief Construct a model from a double-Gaussian optimization parameter vector.
      *
      *  This is used internally by FitPsfAlgorithm to construct the model after fitting
-     *  an elliptical double-Gaussian, and the 4-element parameter vector should correspond
+     *  an elliptical double-Gaussian, and the 3-element parameter vector should correspond
      *  to the parameters used by FitPsfAlgorithm::makeObjective and
      *  FitPsfAlgorithm::makeOptimizer.  By using those functions and this constructor,
      *  we can inspect the optimizer at each step in Python.

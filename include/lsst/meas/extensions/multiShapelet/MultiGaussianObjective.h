@@ -33,7 +33,7 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 class MultiGaussianObjective : public Objective {
 public:
 
-    typedef afw::geom::ellipses::SeparableConformalShearTraceRadius EllipseCore;
+    typedef afw::geom::ellipses::SeparableConformalShearLogTraceRadius EllipseCore;
 
     virtual void computeFunction(
         ndarray::Array<double const,1,1> const & parameters, 

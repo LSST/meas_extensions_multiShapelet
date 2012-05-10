@@ -42,7 +42,8 @@ public:
                        "using it to set the initial parameters.");
     LSST_CONTROL_FIELD(initialRadiusFactor, double,
                        "How to scale the initial ellipse from whatever the canonical shape "
-                       "measures to the radius defined by the profile (usually half-light radius");
+                       "measures to the radius defined by the profile (usually half-light radius); "
+                       "applied after deconvolving the initial ellipse.");
     LSST_CONTROL_FIELD(usePixelWeights, bool, 
                        "If true, individually weigh pixels using the variance image.");
     LSST_CONTROL_FIELD(badMaskPlanes, std::vector<std::string>,
@@ -59,7 +60,7 @@ public:
         PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)(),
         algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
     ) const;
-        
+
     MultiGaussianList const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
 
     FitProfileControl() : 
@@ -86,16 +87,16 @@ private:
 /**
  *  @brief An elliptical model composed of several Gaussians.
  *
- *  All of the Gaussian components have the same ellipticity, and their amplitudes and radius ratios
- *  are fixed relative to each other.  Different combinations of amplitude and radius ratios are
+ *  All of the Gaussian components have the same ellipticity, and their fluxes and radius ratios
+ *  are fixed relative to each other.  Different combinations of flux and radius ratios are
  *  registered with the MultiGaussianRegistry class, and are usually approximations to Sersic functions
  *  with the ellipse defined at the half-light radius of the exact Sersic function being approximated.
  */
 struct FitProfileModel {
 
     std::string profile; ///< name of profile to look up in MultiGaussianRegistry
-    double amplitude; ///< surface brightness at half-light radius
-    double amplitudeErr; ///< uncertainty on amplitude
+    double flux; ///< total flux of approximate model, integrated to infinity
+    double fluxErr; ///< uncertainty on flux
     afw::geom::ellipses::Quadrupole ellipse; ///< half-light radius ellipse
     bool failed;  ///< set to true if the measurement failed
 
@@ -113,6 +114,8 @@ struct FitProfileModel {
 
     /// @brief Deep assignment operator.
     FitProfileModel & operator=(FitProfileModel const & other);
+
+    MultiGaussianList const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
 
     /**
      *  @brief Return a MultiShapeletFunction representation of the model (unconvolved).
@@ -151,7 +154,6 @@ public:
     static PTR(MultiGaussianObjective) makeObjective(
         FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
-        afw::geom::ellipses::Quadrupole const & shape,
         ModelInputHandler const & inputs
     );
 
@@ -165,7 +167,7 @@ public:
      *  visualize its progress.
      */
     static HybridOptimizer makeOptimizer(
-        FitPsfControl const & ctrl,
+        FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
         afw::geom::ellipses::Quadrupole const & shape,
         ModelInputHandler const & inputs
@@ -235,8 +237,8 @@ private:
 
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitProfileAlgorithm);
 
-    afw::table::Key< double > _amplitudeKey;
-    afw::table::Key< double > _amplitudeErrKey;
+    afw::table::Key< double > _fluxKey;
+    afw::table::Key< double > _fluxErrKey;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
     afw::table::Key< afw::table::Flag > _flagKey;
     CONST_PTR(FitPsfControl) _psfCtrl;

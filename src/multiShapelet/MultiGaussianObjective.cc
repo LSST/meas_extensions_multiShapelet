@@ -33,7 +33,7 @@ MultiGaussianObjective::MultiGaussianObjective(
 {
     _builders.reserve(components.size());
     for (MultiGaussianList::const_iterator i = components.begin(); i != components.end(); ++i) {
-        _builders.push_back(GaussianModelBuilder(_inputs.getX(), _inputs.getY(), i->amplitude, i->radius));
+        _builders.push_back(GaussianModelBuilder(_inputs.getX(), _inputs.getY(), i->flux, i->radius));
     }
 }
 
@@ -52,8 +52,8 @@ MultiGaussianObjective::MultiGaussianObjective(
         for (MultiGaussianList::const_iterator i = components.begin(); i != components.end(); ++i) {
             _builders.push_back(
                 GaussianModelBuilder(
-                    _inputs.getX(), _inputs.getY(), i->amplitude, i->radius,
-                    psfComponentEllipse, j->amplitude
+                    _inputs.getX(), _inputs.getY(), i->flux, i->radius,
+                    psfComponentEllipse, j->flux
                 )
             );
         }
@@ -93,7 +93,7 @@ void MultiGaussianObjective::computeDerivative(
             *= (_inputs.getWeights().asEigen() * Eigen::RowVectorXd::Ones(parameters.getSize<0>())).array();
     }
     // Right now, 'derivative' is the partial derivative w.r.t. the objective parameters
-    // with amplitude held fixed at 1.  However, the parameters also affect the amplitude, so we need
+    // with flux held fixed at 1.  However, the parameters also affect the flux, so we need
     // to compute the partial derivative of that.
     Eigen::VectorXd tmp = _inputs.getData().asEigen() - 2.0 * _amplitude * _model.asEigen();
     Eigen::VectorXd dAmplitude = (derivative.asEigen().adjoint() * tmp) / _modelSquaredNorm;

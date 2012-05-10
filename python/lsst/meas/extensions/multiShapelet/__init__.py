@@ -18,7 +18,8 @@ def loadProfiles():
         with open(os.path.join(root, "data", filename), "r") as f:
             d = cPickle.load(f)
             for k, v in d.iteritems():
-                MultiGaussianRegistry.insert(k, *v)
+                flux, radius = v
+                MultiGaussianRegistry.insert(k, flux, radius, True)
 loadProfiles()
 
 # cleanup namespace

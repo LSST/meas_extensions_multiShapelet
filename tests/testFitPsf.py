@@ -68,8 +68,7 @@ class FitPsfTestCase(unittest.TestCase):
         image.getArray()[:,:] += numpy.random.randn(5, 5) * 0.1
         inputs = ms.ModelInputHandler(image, center, image.getBBox(lsst.afw.image.PARENT))
         obj = ms.FitPsfAlgorithm.makeObjective(ctrl, inputs)
-        parameters = numpy.random.rand(nTests, nParameters) * 0.2
-        parameters[:,2] += 2
+        parameters = numpy.random.rand(nTests, nParameters) * 0.5
         for i in range(nTests):
             f0 = numpy.zeros(nData, dtype=float)
             obj.computeFunction(parameters[i,:], f0)
@@ -83,9 +82,9 @@ class FitPsfTestCase(unittest.TestCase):
             f2 = (image2.getArray().ravel() - inputs.getData())
             components = model.getComponents()
             builder1 = ms.GaussianModelBuilder(inputs.getX(), inputs.getY(),
-                                               components[0].amplitude, components[0].radius)
+                                               components[0].flux, components[0].radius)
             builder2 = ms.GaussianModelBuilder(inputs.getX(), inputs.getY(),
-                                               components[1].amplitude, components[1].radius)
+                                               components[1].flux, components[1].radius)
             builder1.update(model.ellipse)
             builder2.update(model.ellipse)
             f3 = builder1.getModel() + builder2.getModel() - inputs.getData()

@@ -31,12 +31,28 @@
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
+//------------ FitProfileControl ----------------------------------------------------------------------------
+
+PTR(algorithms::AlgorithmControl) FitProfileControl::_clone() const {
+    return boost::make_shared<FitProfileControl>(*this);
+}
+
+PTR(algorithms::Algorithm) FitProfileControl::_makeAlgorithm(
+    afw::table::Schema & schema,
+    PTR(daf::base::PropertyList) const & metadata,
+    algorithms::AlgorithmControlMap const & others
+) const {
+    return boost::make_shared<FitProfileAlgorithm>(*this, boost::ref(schema), others);
+}
+
+//------------ FitProfileModel ------------------------------------------------------------------------------
+
 FitProfileModel::FitProfileModel(
     FitProfileControl const & ctrl,
-    double amplitude_,
+    double amplitude,
     ndarray::Array<double const,1,1> const & parameters
 ) :
-    profile(ctrl.profile), amplitude(amplitude_), amplitudeErr(0.0),
+    profile(ctrl.profile), flux(amplitude), fluxErr(0.0),
     ellipse(MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2])),
     failed(false)
 {}
@@ -44,25 +60,25 @@ FitProfileModel::FitProfileModel(
 FitProfileModel::FitProfileModel(
     FitProfileControl const & ctrl, afw::table::SourceRecord const & source
 ) :
-    profile(ctrl.profile), amplitude(1.0), amplitudeErr(0.0), ellipse(), failed(false)
+    profile(ctrl.profile), flux(1.0), fluxErr(0.0), ellipse(), failed(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
-    amplitude = source.get(s.find< double >("amplitude").key);
-    amplitudeErr = source.get(s.find< double >("amplitude.err").key);
+    flux = source.get(s.find< double >("flux").key);
+    fluxErr = source.get(s.find< double >("flux.err").key);
     ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
     failed = source.get(s.find< afw::table::Flag >("flags").key);
 }
 
 FitProfileModel::FitProfileModel(FitProfileModel const & other) :
-    profile(other.profile), amplitude(other.amplitude), amplitudeErr(other.amplitudeErr),
+    profile(other.profile), flux(other.flux), fluxErr(other.fluxErr),
     ellipse(other.ellipse), failed(other.failed)
 {}
 
 FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
     if (&other != this) {
         profile = other.profile;
-        amplitude = other.amplitude;
-        amplitudeErr = other.amplitudeErr;
+        flux = other.flux;
+        fluxErr = other.fluxErr;
         ellipse = other.ellipse;
         failed = other.failed;
     }
@@ -77,10 +93,12 @@ shapelet::MultiShapeletFunction FitProfileModel::asMultiShapelet(
     for (MultiGaussianList::const_iterator i = components.begin(); i != components.end(); ++i) {
         afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
         elements.push_back(i->makeShapelet(fullEllipse));
-        elements.back().getCoefficients().asEigen() *= amplitude;
+        elements.back().getCoefficients().asEigen() *= flux;
     }
     return shapelet::MultiShapeletFunction(elements);
 }
+
+//------------ FitProfileAlgorithm --------------------------------------------------------------------------
 
 FitProfileAlgorithm::FitProfileAlgorithm(
     FitProfileControl const & ctrl,
@@ -88,11 +106,11 @@ FitProfileAlgorithm::FitProfileAlgorithm(
     algorithms::AlgorithmControlMap const & others
 ) :
     algorithms::Algorithm(ctrl),
-    _amplitudeKey(schema.addField<double>(
-                      ctrl.name + ".amplitude", "surface brightness at half-light radius", "dn/pix^2"
+    _fluxKey(schema.addField<double>(
+                      ctrl.name + ".flux", "surface brightness at half-light radius", "dn/pix^2"
                   )),
-    _amplitudeErrKey(schema.addField<double>(
-                         ctrl.name + ".amplitude.err", "uncertainty on amplitude", "dn/pix^2"
+    _fluxErrKey(schema.addField<double>(
+                         ctrl.name + ".flux.err", "uncertainty on flux", "dn/pix^2"
                      )),
     _ellipseKey(schema.addField< afw::table::Moments<float> >(
                     ctrl.name + ".ellipse",
@@ -120,6 +138,101 @@ FitProfileAlgorithm::FitProfileAlgorithm(
     }
 }
 
+PTR(MultiGaussianObjective) FitProfileAlgorithm::makeObjective(
+    FitProfileControl const & ctrl,
+    FitPsfModel const & psfModel,
+    ModelInputHandler const & inputs
+) {
+    return boost::make_shared<MultiGaussianObjective>(
+        inputs, ctrl.getComponents(), psfModel.getComponents(), psfModel.ellipse
+    );
+}
+
+HybridOptimizer FitProfileAlgorithm::makeOptimizer(
+    FitProfileControl const & ctrl,
+    FitPsfModel const & psfModel,
+    afw::geom::ellipses::Quadrupole const & shape,
+    ModelInputHandler const & inputs
+) {
+    static double const INITIAL_PS_RADIUS = 1E-8; // don't use zero to avoid strict fp infinities
+    afw::geom::ellipses::Quadrupole quad(shape);
+    if (ctrl.deconvolveShape) {
+        quad.setIxx(quad.getIxx() - psfModel.ellipse.getIxx());
+        quad.setIyy(quad.getIyy() - psfModel.ellipse.getIyy());
+        quad.setIxy(quad.getIxy() - psfModel.ellipse.getIxy());
+    }
+    MultiGaussianObjective::EllipseCore ellipse(0.0, 0.0, INITIAL_PS_RADIUS);
+    if (quad.getDeterminant() > 0.0 && quad.getIxx() > 0.0) { // no need to check Iyy if Ixx > 0
+        ellipse = quad;
+        ellipse.scale(ctrl.initialRadiusFactor);
+    }
+    PTR(Objective) obj = makeObjective(ctrl, psfModel, inputs);
+    ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
+    ellipse.writeParameters(initial.getData());
+    HybridOptimizerControl optCtrl; // TODO: nest this in FitProfileControl
+    optCtrl.tau = 1E-6;
+    optCtrl.useCholesky = true;
+    optCtrl.gTol = 1E-6;
+    return HybridOptimizer(obj, initial, optCtrl);
+}
+
+void FitProfileAlgorithm::fitShapeletTerms(
+    FitProfileControl const & ctrl,
+    FitPsfModel const & psfModel,
+    ModelInputHandler const & inputs,
+    FitProfileModel & model
+) {
+    typedef shapelet::MultiShapeletFunction MSF; 
+    MSF msf = model.asMultiShapelet().convolve(psfModel.asMultiShapelet());
+    ndarray::Array<double,1,1> vector = ndarray::allocate(inputs.getSize());
+    vector.deep() = 0.0;
+    shapelet::ModelBuilder builder(inputs.getX(), inputs.getY());
+    for (MSF::ElementList::const_iterator i = msf.getElements().begin(); i != msf.getElements().end(); ++i) {
+        builder.addModelVector(i->getOrder(), i->getCoefficients(), vector);
+    }
+    if (!inputs.getWeights().isEmpty()) {
+        vector.asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
+    }
+    // the following is just linear least squares with one free parameter
+    double variance = 1.0 / vector.asEigen().squaredNorm();
+    model.flux = vector.asEigen().dot(inputs.getData().asEigen());
+    model.fluxErr = std::sqrt(variance);
+}
+
+FitProfileModel FitProfileAlgorithm::apply(
+    FitProfileControl const & ctrl,
+    FitPsfModel const & psfModel,
+    afw::geom::ellipses::Quadrupole const & shape,
+    ModelInputHandler const & inputs
+) {
+    HybridOptimizer opt = makeOptimizer(ctrl, psfModel, shape, inputs);
+    opt.run();
+    Model model(
+        ctrl, 
+        boost::static_pointer_cast<MultiGaussianObjective const>(opt.getObjective())->getAmplitude(),
+        opt.getParameters()
+    );
+    model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
+    fitShapeletTerms(ctrl, psfModel, inputs, model);
+    return model;
+}
+
+
+template <typename PixelT>
+FitProfileModel FitProfileAlgorithm::apply(
+    FitProfileControl const & ctrl,
+    FitPsfModel const & psfModel,
+    afw::geom::ellipses::Quadrupole const & shape,
+    afw::detection::Footprint const & footprint,
+    afw::image::MaskedImage<PixelT> const & image,
+    afw::geom::Point2D const & center
+) {
+    afw::image::MaskPixel badPixelMask = afw::image::Mask<>::getPlaneBitMask(ctrl.badMaskPlanes);
+    ModelInputHandler inputs(image, center, footprint, ctrl.growFootprint, 
+                             badPixelMask, ctrl.usePixelWeights);
+    return apply(ctrl, psfModel, shape, inputs);
+}
+
 template <typename PixelT>
 void FitProfileAlgorithm::_apply(
     afw::table::SourceRecord & source,
@@ -133,32 +246,18 @@ void FitProfileAlgorithm::_apply(
             "Cannot run FitProfileAlgorithm without a PSF."
         );
     }
-    // TODO
-}
-
-PTR(MultiGaussianObjective) FitProfileAlgorithm::makeObjective(
-    FitProfileControl const & ctrl,
-    FitPsfModel const & psfModel,
-    afw::geom::ellipses::Quadrupole const & shape,
-    ModelInputHandler const & inputs
-) {
-    return boost::make_shared<MultiGaussianObjective>(
-        inputs, ctrl.getComponents(), psfModel.getComponents(), psfModel.ellipse
+    FitPsfModel psfModel(*_psfCtrl, source);
+    FitProfileModel model = apply(
+        getControl(), psfModel,
+        source.getShape(), *source.getFootprint(),
+        exposure.getMaskedImage(), center
     );
+    source.set(_fluxKey, model.flux);
+    source.set(_fluxErrKey, model.fluxErr);
+    source.set(_ellipseKey, model.ellipse);
+    source.set(_flagKey, model.failed);
 }
 
-
-PTR(algorithms::AlgorithmControl) FitProfileControl::_clone() const {
-    return boost::make_shared<FitProfileControl>(*this);
-}
-
-PTR(algorithms::Algorithm) FitProfileControl::_makeAlgorithm(
-    afw::table::Schema & schema,
-    PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmControlMap const & others
-) const {
-    return boost::make_shared<FitProfileAlgorithm>(*this, boost::ref(schema), others);
-}
 
 LSST_MEAS_ALGORITHM_PRIVATE_IMPLEMENTATION(FitProfileAlgorithm);
 

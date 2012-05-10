@@ -42,21 +42,18 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 class MultiGaussianRegistry {
 public:
 
-#ifndef SWIG
-
     /// @brief Retrieve the MultiGaussianList with the given name or throw NotFoundException.
     static MultiGaussianList const & lookup(std::string const & name);
 
     /// @brief Insert a new MultiGaussianList (replaces if name is already present).
     static void insert(std::string const & name, MultiGaussianList const & components);
 
-#endif // !SWIG
-
-    /// @brief Insert a new MultiGaussianList by passing in separate amplitude and radius arrays.
+    /// @brief Insert a new MultiGaussianList by passing in separate flux and radius arrays.
     static void insert(
         std::string const & name,
-        ndarray::Array<double const,1> const & amplitudes,
-        ndarray::Array<double const,1> const & radii
+        ndarray::Array<double const,1> const & fluxes,
+        ndarray::Array<double const,1> const & radii,
+        bool normalize=false
     );
 
 };
