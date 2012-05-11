@@ -29,6 +29,8 @@
 #include "lsst/meas/extensions/multiShapelet/MultiGaussian.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
+
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
+#include "lsst/meas/extensions/multiShapelet/FitProfile.h"
 
 #endif // !MULTISHAPELET_multiShapelet_h_INCLUDED

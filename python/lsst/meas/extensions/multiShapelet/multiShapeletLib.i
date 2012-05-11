@@ -88,3 +88,7 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 %shared_ptr(lsst::meas::extensions::multiShapelet::FitPsfControl);
 %shared_ptr(lsst::meas::extensions::multiShapelet::FitPsfAlgorithm);
 %include "lsst/meas/extensions/multiShapelet/FitPsf.h"
+
+%shared_ptr(lsst::meas::extensions::multiShapelet::FitProfileControl);
+%shared_ptr(lsst::meas::extensions::multiShapelet::FitProfileAlgorithm);
+%include "lsst/meas/extensions/multiShapelet/FitProfile.h"

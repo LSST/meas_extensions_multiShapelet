@@ -60,7 +60,7 @@ public:
     MultiGaussianList const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
 
     FitProfileControl() :
-        algorithms::AlgorithmControl("multishapelet.exp", 2.5),
+        algorithms::AlgorithmControl("multishapelet.profile", 2.5),
         profile("tractor-exponential"), psfName("multishapelet.psf"),
         useShapeletPsfTerms(true), deconvolveShape(true),
         usePixelWeights(false), badMaskPlanes(), growFootprint(3)

@@ -8,7 +8,23 @@ import lsst.meas.algorithms
 class HybridOptimizerConfig(lsst.pex.config.Config):
     pass
 
+@lsst.pex.config.wrap(FitProfileControl)
+class FitProfileConfig(lsst.pex.config.Config):
+    pass
+
+class FitExponentialConfig(FitProfileConfig):
+    def setDefaults(self):
+        self.profile = "tractor-exponential"
+        self.name = "multishapelet.exp"
+
+class FitDeVaucouleurConfig(FitProfileConfig):
+    def setDefaults(self):
+        self.profile = "tractor-devaucouleur"
+        self.name = "multishapelet.dev"
+
 lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.psf", FitPsfControl)
+lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.exp", FitProfileControl, FitExponentialConfig)
+lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.dev", FitProfileControl, FitDeVaucouleurConfig)
 
 def loadProfiles():
     import os
