@@ -33,7 +33,7 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 
 namespace {
 
-typedef std::pair<std::string,MultiGaussianList> RegistryItem;
+typedef std::pair<std::string,MultiGaussian> RegistryItem;
 typedef std::list<RegistryItem> RegistryList;
 
 RegistryList & getRegistryList() {
@@ -52,7 +52,7 @@ struct CompareRegistryItem {
 
 } // anonymous
 
-MultiGaussianList const & MultiGaussianRegistry::lookup(std::string const & name) {
+MultiGaussian const & MultiGaussianRegistry::lookup(std::string const & name) {
     RegistryList & l = getRegistryList();
     RegistryList::iterator i = std::find_if(l.begin(), l.end(), CompareRegistryItem(name));
     if (i == l.end()) {
@@ -61,14 +61,14 @@ MultiGaussianList const & MultiGaussianRegistry::lookup(std::string const & name
             (boost::format("MultiGaussian with name '%s' not found in registry.") % name).str()
         );
     }
-    MultiGaussianList const & result = i->second;
+    MultiGaussian const & result = i->second;
     if (i != l.begin()) {
         l.splice(l.begin(), l, i);
     }
     return result;
 }
 
-void MultiGaussianRegistry::insert(std::string const & name, MultiGaussianList const & components) {
+void MultiGaussianRegistry::insert(std::string const & name, MultiGaussian const & components) {
     RegistryList & l = getRegistryList();
     RegistryList::iterator i = std::find_if(l.begin(), l.end(), CompareRegistryItem(name));
     if (i != l.end()) {
@@ -91,11 +91,10 @@ void MultiGaussianRegistry::insert(
              fluxes.getSize<0>() % radii.getSize<0>()).str()
         );
     }
-    MultiGaussianList components;
-    components.reserve(fluxes.getSize<0>());
+    MultiGaussian components;
     double totalFlux = 0.0;
     for (int n = 0; n < fluxes.getSize<0>(); ++n) {
-        components.push_back(MultiGaussianComponent(fluxes[n], radii[n]));
+        components.add(GaussianComponent(fluxes[n], radii[n]));
         totalFlux += fluxes[n];
     }
     if (normalize) {

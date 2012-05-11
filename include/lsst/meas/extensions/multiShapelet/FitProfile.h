@@ -57,7 +57,7 @@ public:
         algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
     ) const;
 
-    MultiGaussianList const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
+    MultiGaussian const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
 
     FitProfileControl() :
         algorithms::AlgorithmControl("multishapelet.profile", 2.5),
@@ -111,7 +111,7 @@ struct FitProfileModel {
     /// @brief Deep assignment operator.
     FitProfileModel & operator=(FitProfileModel const & other);
 
-    MultiGaussianList const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
+    MultiGaussian const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
 
     /**
      *  @brief Return a MultiShapeletFunction representation of the model (unconvolved).

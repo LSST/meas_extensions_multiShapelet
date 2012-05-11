@@ -43,8 +43,6 @@ import lsst.afw.image
 import lsst.afw.detection
 import lsst.meas.extensions.multiShapelet as ms
 
-from matplotlib import pyplot
-
 numpy.random.seed(5)
 numpy.set_printoptions(linewidth=120)
 

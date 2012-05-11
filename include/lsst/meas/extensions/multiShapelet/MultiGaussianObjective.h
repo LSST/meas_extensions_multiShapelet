@@ -33,7 +33,8 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 class MultiGaussianObjective : public Objective {
 public:
 
-    typedef afw::geom::ellipses::SeparableConformalShearLogTraceRadius EllipseCore;
+    typedef afw::geom::ellipses::Separable<afw::geom::ellipses::ConformalShear,
+                                           afw::geom::ellipses::LogTraceRadius> EllipseCore;
 
     virtual void computeFunction(
         ndarray::Array<double const,1,1> const & parameters, 
@@ -52,15 +53,19 @@ public:
 
     ModelInputHandler const & getInputs() const { return _inputs; }
 
+    static EllipseCore readParameters(ndarray::Array<double const,1,1> const & parameters);
+
+    static void writeParameters(EllipseCore const & ellipse, ndarray::Array<double,1,1> const & parameters);
+
     MultiGaussianObjective(
         ModelInputHandler const & inputs,
-        MultiGaussianList const & components
+        MultiGaussian const & components
     );
 
     MultiGaussianObjective(
         ModelInputHandler const & inputs,
-        MultiGaussianList const & components,
-        MultiGaussianList const & psfComponents,
+        MultiGaussian const & components,
+        MultiGaussian const & psfComponents,
         afw::geom::ellipses::Quadrupole const & psfEllipse
     );
 

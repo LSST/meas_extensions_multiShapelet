@@ -2,7 +2,7 @@
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
-shapelet::ShapeletFunction MultiGaussianComponent::makeShapelet(
+shapelet::ShapeletFunction GaussianComponent::makeShapelet(
     afw::geom::ellipses::Ellipse const & ellipse, int order
 ) const {
     static double const FACTOR = 1.0 / (shapelet::NORMALIZATION * shapelet::NORMALIZATION * 2.0);
@@ -12,7 +12,7 @@ shapelet::ShapeletFunction MultiGaussianComponent::makeShapelet(
     return result;
 }
 
-void MultiGaussianComponent::readShapeletAmplitude(
+void GaussianComponent::readShapeletAmplitude(
     double coeff0, afw::geom::ellipses::BaseCore const & ellipse
 ) {
     static double const FACTOR = shapelet::NORMALIZATION * shapelet::NORMALIZATION * 2.0;
@@ -21,20 +21,19 @@ void MultiGaussianComponent::readShapeletAmplitude(
 }
 
 
-double MultiGaussianComponent::integrate(List const & components) {
+double MultiGaussian::integrate() const {
     double flux = 0.0;
-    for (List::const_iterator i = components.begin(); i != components.end(); ++i) {
+    for (List::const_iterator i = _components.begin(); i != _components.end(); ++i) {
         flux += i->flux;
     }
     return flux;
 }
 
-afw::geom::ellipses::Quadrupole MultiGaussianComponent::deconvolve(
+afw::geom::ellipses::Quadrupole MultiGaussian::deconvolve(
     afw::geom::ellipses::Quadrupole const & fullMoments,
     afw::geom::ellipses::Quadrupole const & psfMoments,
-    List const & profileComponents,
-    List const & psfComponents
-) {
+    MultiGaussian const & psfComponents
+) const {
     static const double EPS = std::numeric_limits<double>::epsilon();
     //
     // We treat fullMoments as unweighted, infinite, zero-noise moments,
@@ -53,7 +52,7 @@ afw::geom::ellipses::Quadrupole MultiGaussianComponent::deconvolve(
     Eigen::Matrix2d w = fullMoments.getMatrix();
     Eigen::Matrix2d p = psfMoments.getMatrix();
     for (List::const_iterator i = psfComponents.begin(); i != psfComponents.end(); ++i) {
-        for (List::const_iterator j = profileComponents.begin(); j != profileComponents.end(); ++j) {
+        for (List::const_iterator j = this->begin(); j != this->end(); ++j) {
             double ab = i->flux * j->flux;
             rhs += ab * (w - p * i->radius * i->radius);
             lhs += ab * j->radius * j->radius;

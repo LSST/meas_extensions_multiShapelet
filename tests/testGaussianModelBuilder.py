@@ -95,7 +95,7 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
     def testModel1(self):
         builder = ms.GaussianModelBuilder(self.x, self.y)
         builder.update(self.ellipse)
-        mgc = ms.MultiGaussianComponent()
+        mgc = ms.GaussianComponent()
         shapelet = mgc.makeShapelet(ellipses.Ellipse(self.ellipse))
         z0 = builder.getModel()
         z1 = self.buildModel(self.ellipse)
@@ -106,7 +106,7 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
     def testModel2(self):
         amplitude = 3.2
         radius = 2.7
-        mgc = ms.MultiGaussianComponent(amplitude, radius)
+        mgc = ms.GaussianComponent(amplitude, radius)
         shapelet = mgc.makeShapelet(ellipses.Ellipse(self.ellipse))
         builder = ms.GaussianModelBuilder(self.x, self.y, amplitude, radius)
         builder.update(self.ellipse)
@@ -122,9 +122,9 @@ class GaussianModelBuilderTestCase(unittest.TestCase):
         radius = 2.7
         psfEllipse = ellipses.Quadrupole(2.3, 1.8, 0.6)
         psfAmplitude = 5.3
-        mgc = ms.MultiGaussianComponent(amplitude, radius)
+        mgc = ms.GaussianComponent(amplitude, radius)
         shapelet = mgc.makeShapelet(ellipses.Ellipse(self.ellipse))
-        psf = ms.MultiGaussianComponent(psfAmplitude, 1.0).makeShapelet(ellipses.Ellipse(psfEllipse))
+        psf = ms.GaussianComponent(psfAmplitude, 1.0).makeShapelet(ellipses.Ellipse(psfEllipse))
         shapelet = shapelet.convolve(psf)
         builder = ms.GaussianModelBuilder(self.x, self.y, amplitude, radius, psfEllipse, psfAmplitude)
         builder.update(self.ellipse)

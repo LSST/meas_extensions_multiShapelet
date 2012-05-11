@@ -54,9 +54,16 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %template(ModelInputHandler) lsst::meas::extensions::multiShapelet::ModelInputHandler::ModelInputHandler<float>;
 %template(ModelInputHandler) lsst::meas::extensions::multiShapelet::ModelInputHandler::ModelInputHandler<double>;
 
+%rename(__len__) lsst::meas::extensions::multiShapelet::MultiGaussian::size;
+%rename(__getitem__) lsst::meas::extensions::multiShapelet::MultiGaussian::operator[];
 %include "lsst/meas/extensions/multiShapelet/MultiGaussian.h"
-
-%template(MultiGaussianList) std::vector< lsst::meas::extensions::multiShapelet::MultiGaussianComponent >;
+%extend lsst::meas::extensions::multiShapelet::MultiGaussian {
+%pythoncode %{
+def __iter__(self):
+    for i in xrange(len(self)):
+        yield self[i]
+%}
+}
 
 %include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 
@@ -77,10 +84,17 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 %}
 }
 
+%pythoncode %{
+    import lsst.afw.geom.ellipses
+%}
+
 %extend MultiGaussianObjective {
     static PTR(MultiGaussianObjective) _cast(PTR(Objective) const & input) {
         return boost::dynamic_pointer_cast<lsst::meas::extensions::multiShapelet::MultiGaussianObjective>(input);
     }
+    %pythoncode %{
+        EllipseCore = lsst.afw.geom.ellipses.SeparableConformalShearLogTraceRadius
+    %}
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

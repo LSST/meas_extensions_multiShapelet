@@ -119,10 +119,10 @@ class MultiGaussianObjectiveTestCase(unittest.TestCase):
             self.assertClose(d0, d1, rtol=1E-10, atol=1E-8)
 
     def testUnconvolved(self):
-        components = ms.MultiGaussianList()
-        components.append(ms.MultiGaussianComponent(1.0, 1.0))
-        components.append(ms.MultiGaussianComponent(1.23, 1.32))
-        components.append(ms.MultiGaussianComponent(0.67, 0.9))
+        components = ms.MultiGaussian()
+        components.add(ms.GaussianComponent(1.0, 1.0))
+        components.add(ms.GaussianComponent(1.23, 1.32))
+        components.add(ms.GaussianComponent(0.67, 0.9))
         self.doTest(components)
         
 

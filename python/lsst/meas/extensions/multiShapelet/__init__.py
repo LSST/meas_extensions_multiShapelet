@@ -15,12 +15,10 @@ class FitProfileConfig(lsst.pex.config.Config):
 class FitExponentialConfig(FitProfileConfig):
     def setDefaults(self):
         self.profile = "tractor-exponential"
-        self.name = "multishapelet.exp"
 
 class FitDeVaucouleurConfig(FitProfileConfig):
     def setDefaults(self):
         self.profile = "tractor-devaucouleur"
-        self.name = "multishapelet.dev"
 
 lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.psf", FitPsfControl)
 lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.exp", FitProfileControl, FitExponentialConfig)

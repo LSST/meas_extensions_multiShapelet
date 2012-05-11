@@ -44,10 +44,10 @@ int computeOrder(int size2d) {
 
 } // anonymous
 
-MultiGaussianList FitPsfControl::getComponents() const {
-    MultiGaussianList components;
-    components.push_back(MultiGaussianComponent(1.0, 1.0));
-    components.push_back(MultiGaussianComponent(peakRatio * radiusRatio * radiusRatio, radiusRatio));
+MultiGaussian FitPsfControl::getComponents() const {
+    MultiGaussian components;
+    components.add(GaussianComponent(1.0, 1.0));
+    components.add(GaussianComponent(peakRatio * radiusRatio * radiusRatio, radiusRatio));
     return components;
 }
 
@@ -60,7 +60,7 @@ FitPsfModel::FitPsfModel(
     radiusRatio(ctrl.radiusRatio),
     failed(false)
 {
-    MultiGaussianList components = ctrl.getComponents();
+    MultiGaussian components = ctrl.getComponents();
     ellipse = MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2]);
     shapelet::ShapeletFunction innerShapelet = components[0].makeShapelet(
         afw::geom::ellipses::Ellipse(ellipse), ctrl.innerOrder
@@ -119,12 +119,10 @@ FitPsfModel & FitPsfModel::operator=(FitPsfModel const & other) {
     return *this;
 }
 
-MultiGaussianList FitPsfModel::getComponents() const {
-    MultiGaussianList components;
-    components.push_back(MultiGaussianComponent(1.0, 1.0));
-    components.back().readShapeletAmplitude(inner[0], ellipse);
-    components.push_back(MultiGaussianComponent(1.0, radiusRatio));
-    components.back().readShapeletAmplitude(outer[0], ellipse);
+MultiGaussian FitPsfModel::getComponents() const {
+    MultiGaussian components;
+    components.add(GaussianComponent(1.0, 1.0)).readShapeletAmplitude(inner[0], ellipse);
+    components.add(GaussianComponent(1.0, radiusRatio)).readShapeletAmplitude(outer[0], ellipse);
     return components;
 }
 

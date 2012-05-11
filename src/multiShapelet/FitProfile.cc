@@ -89,8 +89,8 @@ shapelet::MultiShapeletFunction FitProfileModel::asMultiShapelet(
     afw::geom::Point2D const & center
 ) const {
     shapelet::MultiShapeletFunction::ElementList elements;
-    MultiGaussianList const & components = MultiGaussianRegistry::lookup(profile);
-    for (MultiGaussianList::const_iterator i = components.begin(); i != components.end(); ++i) {
+    MultiGaussian const & components = MultiGaussianRegistry::lookup(profile);
+    for (MultiGaussian::const_iterator i = components.begin(); i != components.end(); ++i) {
         afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
         elements.push_back(i->makeShapelet(fullEllipse));
         elements.back().getCoefficients().asEigen() *= flux;
@@ -156,8 +156,8 @@ HybridOptimizer FitProfileAlgorithm::makeOptimizer(
 ) {
     MultiGaussianObjective::EllipseCore ellipse;
     if (ctrl.deconvolveShape) {
-        ellipse = MultiGaussianComponent::deconvolve(
-            shape, psfModel.ellipse, ctrl.getComponents(), psfModel.getComponents()
+        ellipse = ctrl.getComponents().deconvolve(
+            shape, psfModel.ellipse, psfModel.getComponents()
         );
     } else {
         ellipse = shape;

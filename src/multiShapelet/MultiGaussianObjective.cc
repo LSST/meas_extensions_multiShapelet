@@ -27,29 +27,29 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 
 MultiGaussianObjective::MultiGaussianObjective(
     ModelInputHandler const & inputs,
-    MultiGaussianList const & components
+    MultiGaussian const & components
 ) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
     _ellipse(), _inputs(inputs), _model(ndarray::allocate(inputs.getSize()))
 {
     _builders.reserve(components.size());
-    for (MultiGaussianList::const_iterator i = components.begin(); i != components.end(); ++i) {
+    for (MultiGaussian::const_iterator i = components.begin(); i != components.end(); ++i) {
         _builders.push_back(GaussianModelBuilder(_inputs.getX(), _inputs.getY(), i->flux, i->radius));
     }
 }
 
 MultiGaussianObjective::MultiGaussianObjective(
     ModelInputHandler const & inputs,
-    MultiGaussianList const & components,
-    MultiGaussianList const & psfComponents,
+    MultiGaussian const & components,
+    MultiGaussian const & psfComponents,
     afw::geom::ellipses::Quadrupole const & psfEllipse
 ) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
     _ellipse(), _inputs(inputs), _model(ndarray::allocate(inputs.getSize()))
 {
     _builders.reserve(components.size() * psfComponents.size());
-    for (MultiGaussianList::const_iterator j = psfComponents.begin(); j != psfComponents.end(); ++j) {
+    for (MultiGaussian::const_iterator j = psfComponents.begin(); j != psfComponents.end(); ++j) {
         afw::geom::ellipses::Quadrupole psfComponentEllipse(psfEllipse);
         psfComponentEllipse.scale(j->radius);
-        for (MultiGaussianList::const_iterator i = components.begin(); i != components.end(); ++i) {
+        for (MultiGaussian::const_iterator i = components.begin(); i != components.end(); ++i) {
             _builders.push_back(
                 GaussianModelBuilder(
                     _inputs.getX(), _inputs.getY(), i->flux, i->radius,
@@ -101,5 +101,21 @@ void MultiGaussianObjective::computeDerivative(
     derivative.asEigen() *= _amplitude;
     derivative.asEigen() += _model.asEigen() * dAmplitude.transpose();
 }
+
+
+MultiGaussianObjective::EllipseCore
+MultiGaussianObjective::readParameters(ndarray::Array<double const,1,1> const & parameters) {
+    EllipseCore r;
+    r.readParameters(parameters.getData());
+    return r;
+}
+
+void MultiGaussianObjective::writeParameters(
+    EllipseCore const & ellipse,
+    ndarray::Array<double,1,1> const & parameters
+) {
+    ellipse.writeParameters(parameters.getData());
+}
+
 
 }}}} // namespace lsst::meas::extensions::multiShapelet
