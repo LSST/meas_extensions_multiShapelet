@@ -40,15 +40,11 @@ public:
     LSST_CONTROL_FIELD(deconvolveShape, bool,
                        "Attempt to approximately deconvolve the canonical shape before "
                        "using it to set the initial parameters.");
-    LSST_CONTROL_FIELD(initialRadiusFactor, double,
-                       "How to scale the initial ellipse from whatever the canonical shape "
-                       "measures to the radius defined by the profile (usually half-light radius); "
-                       "applied after deconvolving the initial ellipse.");
-    LSST_CONTROL_FIELD(usePixelWeights, bool, 
+    LSST_CONTROL_FIELD(usePixelWeights, bool,
                        "If true, individually weigh pixels using the variance image.");
     LSST_CONTROL_FIELD(badMaskPlanes, std::vector<std::string>,
                        "Mask planes that indicate pixels that should be ignored in the fit.");
-    LSST_CONTROL_FIELD(growFootprint, int, 
+    LSST_CONTROL_FIELD(growFootprint, int,
                        "Number of pixels to grow the footprint by.");
 
     PTR(FitProfileControl) clone() const {
@@ -63,10 +59,10 @@ public:
 
     MultiGaussianList const & getComponents() const { return MultiGaussianRegistry::lookup(profile); }
 
-    FitProfileControl() : 
-        algorithms::AlgorithmControl("multishapelet.exp", 2.5), 
+    FitProfileControl() :
+        algorithms::AlgorithmControl("multishapelet.exp", 2.5),
         profile("tractor-exponential"), psfName("multishapelet.psf"),
-        useShapeletPsfTerms(true), deconvolveShape(true), initialRadiusFactor(1.0),
+        useShapeletPsfTerms(true), deconvolveShape(true),
         usePixelWeights(false), badMaskPlanes(), growFootprint(3)
     {
         badMaskPlanes.push_back("BAD");

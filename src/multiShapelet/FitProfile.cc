@@ -154,17 +154,13 @@ HybridOptimizer FitProfileAlgorithm::makeOptimizer(
     afw::geom::ellipses::Quadrupole const & shape,
     ModelInputHandler const & inputs
 ) {
-    static double const INITIAL_PS_RADIUS = 1E-8; // don't use zero to avoid strict fp infinities
-    afw::geom::ellipses::Quadrupole quad(shape);
+    MultiGaussianObjective::EllipseCore ellipse;
     if (ctrl.deconvolveShape) {
-        quad.setIxx(quad.getIxx() - psfModel.ellipse.getIxx());
-        quad.setIyy(quad.getIyy() - psfModel.ellipse.getIyy());
-        quad.setIxy(quad.getIxy() - psfModel.ellipse.getIxy());
-    }
-    MultiGaussianObjective::EllipseCore ellipse(0.0, 0.0, INITIAL_PS_RADIUS);
-    if (quad.getDeterminant() > 0.0 && quad.getIxx() > 0.0) { // no need to check Iyy if Ixx > 0
-        ellipse = quad;
-        ellipse.scale(ctrl.initialRadiusFactor);
+        ellipse = MultiGaussianComponent::deconvolve(
+            shape, psfModel.ellipse, ctrl.getComponents(), psfModel.getComponents()
+        );
+    } else {
+        ellipse = shape;
     }
     PTR(Objective) obj = makeObjective(ctrl, psfModel, inputs);
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());

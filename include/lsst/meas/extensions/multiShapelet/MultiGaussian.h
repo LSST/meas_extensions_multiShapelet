@@ -42,6 +42,13 @@ struct MultiGaussianComponent {
     
     static double integrate(List const & components);
 
+    static afw::geom::ellipses::Quadrupole deconvolve(
+        afw::geom::ellipses::Quadrupole const & fullMoments,
+        afw::geom::ellipses::Quadrupole const & psfMoments,
+        List const & profileComponents,
+        List const & psfComponents
+    );
+
     explicit MultiGaussianComponent(double flux_=1.0, double radius_=1.0) 
         : flux(flux_), radius(radius_) {}
 };
