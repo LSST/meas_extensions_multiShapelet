@@ -23,13 +23,13 @@
 #
 
 """
-Tests for FitPsf
+Tests for FitProfile
 
 Run with:
-   ./testFitPsf.py
+   ./testFitProfile.py
 or
    python
-   >>> import testFitPsf; testFitPsf.run()
+   >>> import testFitProfile; testFitProfile.run()
 """
 
 import unittest
@@ -38,7 +38,7 @@ import numpy
 import lsst.utils.tests as utilsTests
 import lsst.pex.exceptions
 import lsst.afw.geom as geom
-import lsst.afw.geom.ellipses as ellipses
+import lsst.afw.geom.ellipses
 import lsst.afw.image
 import lsst.afw.detection
 import lsst.meas.extensions.multiShapelet as ms
@@ -57,7 +57,7 @@ class FitProfileTestMixin(object):
 
     def setUp(self):
         self.center = geom.Point2D(50.1, 60.7)
-        self.ellipse = ellipses.Ellipse(ellipses.Axes(20.0, 15.0, 0.23), self.center)
+        self.ellipse = geom.ellipses.Ellipse(geom.ellipses.Axes(20.0, 15.0, 0.23), self.center)
         self.footprint = lsst.afw.detection.Footprint(self.ellipse)
         self.bbox = geom.Box2I(geom.Point2I(5, 6), geom.Extent2I(80, 75))
         shape = (self.bbox.getHeight(), self.bbox.getWidth())
@@ -104,6 +104,8 @@ class FitProfileTestMixin(object):
                 b.update(ms.MultiGaussianObjective.readParameters(row))
                 z1 += b.getModel().reshape(*z1.shape)
             self.assertClose(z0, z1)
+            self.assert_(numpy.isfinite(z0).all())
+            self.assert_(numpy.isfinite(z1).all())
 
     def testConvolvedModel(self):
         psfModel = ms.FitPsfModel(ms.FitPsfControl(), 1.0, numpy.array([0.1, -0.05, 1.0]))
@@ -131,6 +133,41 @@ class FitProfileTestMixin(object):
                 b.update(ms.MultiGaussianObjective.readParameters(row))
                 z1 += b.getModel().reshape(*z1.shape)
             self.assertClose(z0, z1)
+            self.assert_(numpy.isfinite(z0).all())
+            self.assert_(numpy.isfinite(z1).all())
+
+    def testObjective(self):
+        eps = 1E-6
+        psfModel = ms.FitPsfModel(ms.FitPsfControl(), 1.0, numpy.array([0.1, -0.05, 1.0]))
+        obj = ms.FitProfileAlgorithm.makeObjective(self.ctrl, psfModel, self.inputs)
+        resolved = geom.ellipses.Quadrupole(15.0, 12.0, 0.23)
+        circle = geom.ellipses.Quadrupole(1.0, 1.0, 0.0)
+        deconvolvedPS = self.ctrl.getComponents().deconvolve(
+            geom.ellipses.Quadrupole(0.0, 0.0, 0.0), 
+            psfModel.ellipse,
+            psfModel.getComponents()
+            )
+        for q in (resolved, circle, deconvolvedPS):
+            e = ms.MultiGaussianObjective.EllipseCore(q)
+            parameters = numpy.zeros(3, dtype=float)
+            ms.MultiGaussianObjective.writeParameters(e, parameters)
+            f0 = numpy.zeros(self.inputs.getSize(), dtype=float)
+            obj.computeFunction(parameters, f0)
+            d0 = numpy.zeros((parameters.size, self.inputs.getSize()), dtype=float).transpose()
+            d1 = numpy.zeros((parameters.size, self.inputs.getSize()), dtype=float).transpose()
+            obj.computeDerivative(parameters, f0, d0)
+            for i in range(parameters.size):
+                parameters[i] += eps
+                f1a = numpy.zeros(self.inputs.getSize(), dtype=float)
+                obj.computeFunction(parameters, f1a)
+                parameters[i] -= 2.0 * eps
+                f1b = numpy.zeros(self.inputs.getSize(), dtype=float)
+                obj.computeFunction(parameters, f1b)
+                parameters[i] -= eps
+                d1[:,i] = (f1a - f1b) / (2.0 * eps)
+            self.assertClose(d0, d1, atol=1E-4)
+            print d0
+            
 
     def tearDown(self):
         del self.ellipse

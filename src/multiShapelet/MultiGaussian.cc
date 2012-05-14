@@ -59,7 +59,14 @@ afw::geom::ellipses::Quadrupole MultiGaussian::deconvolve(
         }
     }
     afw::geom::ellipses::Quadrupole::Matrix q(rhs / lhs);
-    if (q(0,0) <= EPS || q(1,1) <= EPS || q.determinant() <= EPS) q = Eigen::Matrix2d::Identity() * EPS;
+    // Ellipses with exactly zero radius cause a lot of problems because of singularities in
+    // some parameterizations, so we return a very-tiny-not-quite-zero ellipse instead.
+    // We make the defintion of "tiny" relative to the PSF to be independent of what coordinate
+    // system the ellipses are in.
+    double psfArea = std::sqrt(p.determinant());
+    if (q(0,0) <= EPS * psfArea || q(1,1) <= EPS * psfArea || q.determinant() <= EPS * psfArea * psfArea) {
+        q = Eigen::Matrix2d::Identity() * EPS * psfArea;
+    }
     return afw::geom::ellipses::Quadrupole(q);
 }
 
