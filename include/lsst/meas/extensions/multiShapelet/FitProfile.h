@@ -35,8 +35,10 @@ public:
 
     LSST_CONTROL_FIELD(profile, std::string, "Name of a registered multi-Gaussian profile.");
     LSST_CONTROL_FIELD(psfName, std::string, "Root name of the FitPsfAlgorithm fields.");
-    LSST_CONTROL_FIELD(useShapeletPsfTerms, bool,
+    LSST_CONTROL_FIELD(usePsfShapeletTerms, bool,
                        "If true, use the full double-shapelet PSF model; if false, use double-Gaussian.");
+    LSST_CONTROL_FIELD(minInitialRadius, double,
+                       "Minimum initial radius as a fraction of the PSF inner radius.");
     LSST_CONTROL_FIELD(deconvolveShape, bool,
                        "Attempt to approximately deconvolve the canonical shape before "
                        "using it to set the initial parameters.");
@@ -62,7 +64,7 @@ public:
     FitProfileControl() :
         algorithms::AlgorithmControl("multishapelet.profile", 2.5),
         profile("tractor-exponential"), psfName("multishapelet.psf"),
-        useShapeletPsfTerms(true), deconvolveShape(true),
+        usePsfShapeletTerms(false), minInitialRadius(0.01), deconvolveShape(true),
         usePixelWeights(false), badMaskPlanes(), growFootprint(3)
     {
         badMaskPlanes.push_back("BAD");
@@ -186,11 +188,11 @@ public:
     /**
      *  @brief Fit to a local PSF or kernel image.
      *
-     *  @param[in] ctrl           Details of the model to fit.
-     *  @param[in] psfModel       Localized double-shapelet PSF model.
-     *  @param[in] shape          Shape measurement used to set initial ellipse parameters
-     *                            (interpreted as defined by ctrl data members).
-     *  @param[in] inputs         Inputs that determine the data to be fit.
+     *  @param[in]     ctrl           Details of the model to fit.
+     *  @param[in]     psfModel       Localized double-shapelet PSF model.
+     *  @param[in,out] shape          Shape measurement used to set initial ellipse parameters
+     *                                (possibly modified as defined by ctrl data members).
+     *  @param[in]     inputs         Inputs that determine the data to be fit.
      */
     static FitProfileModel apply(
         FitProfileControl const & ctrl,
@@ -202,15 +204,15 @@ public:
     /**
      *  @brief Fit to a local PSF or kernel image.
      *
-     *  @param[in] ctrl           Details of the model to fit.
-     *  @param[in] psfModel       Localized double-shapelet PSF model.
-     *  @param[in] shape          Shape measurement used to set initial ellipse parameters
-     *                            (interpreted as defined by ctrl data members).
-     *  @param[in] footprint      Region of the image to fit (after modification according to
-     *                            ctrl parameters).
-     *  @param[in] image          Full masked image to fit.
-     *  @param[in] center         Center of the object in the image's PARENT coordinate system
-     *                            (i.e. xy0 is used).
+     *  @param[in]     ctrl           Details of the model to fit.
+     *  @param[in]     psfModel       Localized double-shapelet PSF model.
+     *  @param[in,out] shape          Shape measurement used to set initial ellipse parameters
+     *                                (possibly modified as defined by ctrl data members).
+     *  @param[in]     footprint      Region of the image to fit (after modification according to
+     *                                ctrl parameters).
+     *  @param[in]     image          Full masked image to fit.
+     *  @param[in]     center         Center of the object in the image's PARENT coordinate system
+     *                                (i.e. xy0 is used).
      */
     template <typename PixelT>
     static FitProfileModel apply(

@@ -142,12 +142,8 @@ class FitProfileTestMixin(object):
         obj = ms.FitProfileAlgorithm.makeObjective(self.ctrl, psfModel, self.inputs)
         resolved = geom.ellipses.Quadrupole(15.0, 12.0, 0.23)
         circle = geom.ellipses.Quadrupole(1.0, 1.0, 0.0)
-        deconvolvedPS = self.ctrl.getComponents().deconvolve(
-            geom.ellipses.Quadrupole(0.0, 0.0, 0.0), 
-            psfModel.ellipse,
-            psfModel.getComponents()
-            )
-        for q in (resolved, circle, deconvolvedPS):
+        deltafn = geom.ellipses.Quadrupole(0.0, 0.0, 0.0)
+        for q in (resolved, circle, deltafn):
             e = ms.MultiGaussianObjective.EllipseCore(q)
             parameters = numpy.zeros(3, dtype=float)
             ms.MultiGaussianObjective.writeParameters(e, parameters)

@@ -154,14 +154,23 @@ HybridOptimizer FitProfileAlgorithm::makeOptimizer(
     afw::geom::ellipses::Quadrupole const & shape,
     ModelInputHandler const & inputs
 ) {
-    MultiGaussianObjective::EllipseCore ellipse;
+    afw::geom::ellipses::Axes axes(shape);
     if (ctrl.deconvolveShape) {
-        ellipse = ctrl.getComponents().deconvolve(
+        axes = ctrl.getComponents().deconvolve(
             shape, psfModel.ellipse, psfModel.getComponents()
         );
-    } else {
-        ellipse = shape;
     }
+    double minRadius = psfModel.ellipse.getDeterminantRadius() * ctrl.minInitialRadius;
+    try {
+        axes.normalize();
+        if (axes.getA() < minRadius) axes.setA(minRadius);
+        if (axes.getB() < minRadius) axes.setB(minRadius);
+    } catch (pex::exceptions::InvalidParameterException &) {
+        axes.setA(minRadius);
+        axes.setB(minRadius);
+        axes.setTheta(0.0);
+    }
+    MultiGaussianObjective::EllipseCore ellipse(axes);
     PTR(Objective) obj = makeObjective(ctrl, psfModel, inputs);
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
     ellipse.writeParameters(initial.getData());
@@ -209,7 +218,9 @@ FitProfileModel FitProfileAlgorithm::apply(
         opt.getParameters()
     );
     model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
-    fitShapeletTerms(ctrl, psfModel, inputs, model);
+    if (ctrl.usePsfShapeletTerms) {
+        fitShapeletTerms(ctrl, psfModel, inputs, model);
+    }
     return model;
 }
 
