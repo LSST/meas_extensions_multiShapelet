@@ -48,6 +48,9 @@ public:
     /// @brief The number of pixels in the model.
     int getSize() const { return _x.size(); }
     
+    /// @brief Return the footprint actually used to flatten the inputs.
+    PTR(afw::detection::Footprint) getFootprint() const { return _footprint; }
+
     template <typename PixelT>
     ModelInputHandler(afw::image::Image<PixelT> const & image, afw::geom::Point2D const & center, 
                       afw::geom::Box2I const & region);
@@ -74,6 +77,7 @@ private:
     ndarray::Array<double,1,1> _y;
     ndarray::Array<double,1,1> _data;
     ndarray::Array<double,1,1> _weights;
+    PTR(afw::detection::Footprint) _footprint;
 };
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

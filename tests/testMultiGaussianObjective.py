@@ -86,6 +86,7 @@ class MultiGaussianObjectiveTestCase(unittest.TestCase):
         del self.bbox
         del self.image
         del self.center
+        del self.inputs
 
     def doTest(self, components):
         eps = 1E-6

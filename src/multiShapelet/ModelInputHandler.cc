@@ -58,11 +58,11 @@ ModelInputHandler::ModelInputHandler(
     afw::image::Image<PixelT> const & image, afw::geom::Point2D const & center, 
     afw::geom::Box2I const & region
 ) {
-    afw::detection::Footprint fp(region);
-    fp.clipTo(image.getBBox(afw::image::PARENT));
-    _data = ndarray::allocate(fp.getArea());
-    afw::detection::flattenArray(fp, image.getArray(), _data, image.getXY0());
-    initCoords(_x, _y, fp, center);
+    _footprint = boost::make_shared<afw::detection::Footprint>(region);
+    _footprint->clipTo(image.getBBox(afw::image::PARENT));
+    _data = ndarray::allocate(_footprint->getArea());
+    afw::detection::flattenArray(*_footprint, image.getArray(), _data, image.getXY0());
+    initCoords(_x, _y, *_footprint, center);
 }
 
 template <typename PixelT>
@@ -70,16 +70,15 @@ ModelInputHandler::ModelInputHandler(
     afw::image::Image<PixelT> const & image, afw::geom::Point2D const & center, 
     afw::detection::Footprint const & region, int growFootprint
 ) {
-    PTR(afw::detection::Footprint) fp;
     if (growFootprint) {
-        fp = afw::detection::growFootprint(region, growFootprint);
+        _footprint = afw::detection::growFootprint(region, growFootprint);
     } else {
-        fp = boost::make_shared<afw::detection::Footprint>(region);
+        _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    fp->clipTo(image.getBBox(afw::image::PARENT));
-    _data = ndarray::allocate(fp->getArea());
-    afw::detection::flattenArray(*fp, image.getArray(), _data, image.getXY0());
-    initCoords(_x, _y, *fp, center);
+    _footprint->clipTo(image.getBBox(afw::image::PARENT));
+    _data = ndarray::allocate(_footprint->getArea());
+    afw::detection::flattenArray(*_footprint, image.getArray(), _data, image.getXY0());
+    initCoords(_x, _y, *_footprint, center);
 }
 
 template <typename PixelT>
@@ -87,17 +86,18 @@ ModelInputHandler::ModelInputHandler(
     afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center, 
     afw::geom::Box2I const & region, afw::image::MaskPixel badPixelMask, bool usePixelWeights
 ) {
-    afw::detection::Footprint fp(region);
-    fp.intersectMask(*image.getMask(), badPixelMask);
-    _data = ndarray::allocate(fp.getArea());
-    _weights = ndarray::allocate(fp.getArea());
-    afw::detection::flattenArray(fp, image.getImage()->getArray(), _data, image.getXY0());
-    afw::detection::flattenArray(fp, image.getVariance()->getArray(), _weights, image.getXY0());
+    _footprint = boost::make_shared<afw::detection::Footprint>(region);
+    _footprint->intersectMask(*image.getMask(), badPixelMask);
+    _data = ndarray::allocate(_footprint->getArea());
+    _weights = ndarray::allocate(_footprint->getArea());
+    afw::detection::flattenArray(*_footprint, image.getImage()->getArray(), _data, image.getXY0());
+    afw::detection::flattenArray(*_footprint, image.getVariance()->getArray(), _weights, image.getXY0());
     if (!usePixelWeights) {
         _weights.asEigen().setConstant(_weights.asEigen().mean());
     }
     _weights.asEigen<Eigen::ArrayXpr>() = _weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse();
-    initCoords(_x, _y, fp, center);
+    _data.asEigen<Eigen::ArrayXpr>() *= _weights.asEigen<Eigen::ArrayXpr>();
+    initCoords(_x, _y, *_footprint, center);
 }
 
 template <typename PixelT>
@@ -106,22 +106,22 @@ ModelInputHandler::ModelInputHandler(
     afw::detection::Footprint const & region, int growFootprint,
     afw::image::MaskPixel badPixelMask, bool usePixelWeights
 ) {
-    PTR(afw::detection::Footprint) fp;
     if (growFootprint) {
-        fp = afw::detection::growFootprint(region, growFootprint);
+        _footprint = afw::detection::growFootprint(region, growFootprint);
     } else {
-        fp = boost::make_shared<afw::detection::Footprint>(region);
+        _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    fp->intersectMask(*image.getMask(), badPixelMask);
-    _data = ndarray::allocate(fp->getArea());
-    _weights = ndarray::allocate(fp->getArea());
-    afw::detection::flattenArray(*fp, image.getImage()->getArray(), _data, image.getXY0());
-    afw::detection::flattenArray(*fp, image.getVariance()->getArray(), _weights, image.getXY0());
+    _footprint->intersectMask(*image.getMask(), badPixelMask);
+    _data = ndarray::allocate(_footprint->getArea());
+    _weights = ndarray::allocate(_footprint->getArea());
+    afw::detection::flattenArray(*_footprint, image.getImage()->getArray(), _data, image.getXY0());
+    afw::detection::flattenArray(*_footprint, image.getVariance()->getArray(), _weights, image.getXY0());
     if (!usePixelWeights) {
         _weights.asEigen().setConstant(_weights.asEigen().mean());
     }
     _weights.asEigen<Eigen::ArrayXpr>() = _weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse();
-    initCoords(_x, _y, *fp, center);
+    _data.asEigen<Eigen::ArrayXpr>() *= _weights.asEigen<Eigen::ArrayXpr>();
+    initCoords(_x, _y, *_footprint, center);
 }
 
 #define INSTANTIATE(T)                          \
