@@ -155,12 +155,12 @@ FitPsfAlgorithm::FitPsfAlgorithm(FitPsfControl const & ctrl, afw::table::Schema 
     algorithms::Algorithm(ctrl),
     _innerKey(schema.addField< afw::table::Array<float> >(
                   ctrl.name + ".inner",
-                  "Gauss-Hermite coefficients of the inner expansion (see shapelet)",
+                  "Gauss-Hermite coefficients of the inner expansion (see lsst.shapelet package)",
                   shapelet::computeSize(ctrl.innerOrder)
               )),
     _outerKey(schema.addField< afw::table::Array<float> >(
                   ctrl.name + ".outer",
-                  "Gauss-Hermite coefficients of the outer expansion (see shapelet)",
+                  "Gauss-Hermite coefficients of the outer expansion (see lsst.shapelet package)",
                   shapelet::computeSize(ctrl.outerOrder)
               )),
     _ellipseKey(schema.addField< afw::table::Moments<float> >(
