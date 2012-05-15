@@ -6,7 +6,7 @@ shapelet::ShapeletFunction GaussianComponent::makeShapelet(
     afw::geom::ellipses::Ellipse const & ellipse, int order
 ) const {
     static double const FACTOR = 1.0 / (shapelet::NORMALIZATION * shapelet::NORMALIZATION * 2.0);
-    shapelet::ShapeletFunction result(order=0, shapelet::HERMITE, ellipse);
+    shapelet::ShapeletFunction result(order, shapelet::HERMITE, ellipse);
     result.getEllipse().getCore().scale(radius);
     result.getCoefficients()[0] = flux * FACTOR / result.getEllipse().getCore().getArea();
     return result;
