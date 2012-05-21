@@ -5,19 +5,16 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 shapelet::ShapeletFunction GaussianComponent::makeShapelet(
     afw::geom::ellipses::Ellipse const & ellipse, int order
 ) const {
-    static double const FACTOR = 1.0 / (shapelet::NORMALIZATION * shapelet::NORMALIZATION * 2.0);
     shapelet::ShapeletFunction result(order, shapelet::HERMITE, ellipse);
     result.getEllipse().getCore().scale(radius);
-    result.getCoefficients()[0] = flux * FACTOR / result.getEllipse().getCore().getArea();
+    result.getCoefficients()[0] = flux / shapelet::ShapeletFunction::FLUX_FACTOR;
     return result;
 }
 
 void GaussianComponent::readShapeletAmplitude(
     double coeff0, afw::geom::ellipses::BaseCore const & ellipse
 ) {
-    static double const FACTOR = shapelet::NORMALIZATION * shapelet::NORMALIZATION * 2.0;
-    double area = ellipse.getArea() * radius * radius;
-    flux *= coeff0 * area * FACTOR;
+    flux *= coeff0 * shapelet::ShapeletFunction::FLUX_FACTOR;
 }
 
 
@@ -34,7 +31,6 @@ afw::geom::ellipses::Quadrupole MultiGaussian::deconvolve(
     afw::geom::ellipses::Quadrupole const & psfMoments,
     MultiGaussian const & psfComponents
 ) const {
-    
     //
     // We treat fullMoments as unweighted, infinite, zero-noise moments,
     // and match that to the analytic unweighted, infinite, zero-noise moments

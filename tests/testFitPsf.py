@@ -72,7 +72,7 @@ class FitPsfTestCase(unittest.TestCase):
             obj.computeFunction(parameters[i,:], f0)
             f1 = obj.getModel() * obj.getAmplitude() - inputs.getData()
             model = ms.FitPsfModel(ctrl, obj.getAmplitude(), parameters[i,:])
-            self.assertClose(model.outer[0], ctrl.peakRatio * model.inner[0])
+            self.assertClose(model.outer[0], ctrl.peakRatio * model.inner[0] * ctrl.radiusRatio**2)
             self.assertEqual(model.radiusRatio, ctrl.radiusRatio)
             image2 = lsst.afw.image.ImageD(5, 5)
             multiShapeletFunc = model.asMultiShapelet(center)
