@@ -141,14 +141,39 @@ void HybridOptimizer::Impl::step() {
     if (!checkStep(normH, FAILURE_MINSTEP)) return;
     if (method == BFGS && normH > delta) h *= delta / normH;
     xNew = x + h;
-    fNew.setZero();
-    obj->computeFunction(xNew.shallow(), fNew.shallow());
-    QNew = 0.5 * fNew.squaredNorm();
-    JNew.setZero();
-    obj->computeDerivative(xNew.shallow(), fNew.shallow(), JNew.shallow());
+    // All of the doStep business is a very kludgy way to add limited constraints to the optimizer;
+    // it does not make this a general robust constrained optimizer.  But hopefully it's enough for
+    // some simple problems, like galaxy models with tiny radii.
+    Objective::StepResult doStep = obj->tryStep(x.shallow(), xNew.shallow());
+    if (doStep == Objective::MODIFIED) {
+        // The objective function modified our proposal step into something it could evaluate.
+        // We'll proceed as this was the step we proposed, but first we'll check if we're
+        // actually going anywhere.
+        state |= STEP_MODIFIED;
+        h = xNew - x;
+        normH = h.norm();
+        if (!checkStep(normH, FAILURE_MINSTEP)) return;
+    } else if (doStep == Objective::INVALID) {
+        // Proposed step is so ridiculuous we won't even evaluate the model, but we will
+        // modify the trust region parameters (delta or mu,nu), so we don't return just yet.
+        // This means we can't update the BFGS Hessian approximation during this step, so
+        // it doesn't help us as much as an evaluated-and-rejected step might - but it's
+        // also a lot cheaper.
+        state |= STEP_INVALID;
+        QNew = std::numeric_limits<double>::infinity();
+    } else {
+        state &= ~(STEP_MODIFIED | STEP_INVALID);
+    }
+    if (doStep) {
+        fNew.setZero();
+        obj->computeFunction(xNew.shallow(), fNew.shallow());
+        QNew = 0.5 * fNew.squaredNorm();
+        JNew.setZero();
+        obj->computeDerivative(xNew.shallow(), fNew.shallow(), JNew.shallow());
+    }
 
     double normInfGNew = 0.0;
-    if (method == BFGS || QNew < Q) {
+    if (doStep && (method == BFGS || QNew < Q)) {
         gNew = JNew.adjoint() * fNew;
         normInfGNew = gNew.lpNorm<Eigen::Infinity>();
     }
@@ -191,6 +216,8 @@ void HybridOptimizer::Impl::step() {
             shouldSwitchMethod = (nu >= 32.0);
         }
     }
+    if (!doStep) return;
+
     y = JNew.adjoint() * (JNew * h) + (gNew - g);
     double hy = h.dot(y);
     if (hy > 0.0) {

@@ -145,6 +145,7 @@ class FitProfileTestMixin(object):
         deltafn = geom.ellipses.Quadrupole(0.0, 0.0, 0.0)
         for q in (resolved, circle, deltafn):
             e = ms.MultiGaussianObjective.EllipseCore(q)
+            ms.MultiGaussianObjective.constrainEllipse(e, self.ctrl.minRadius, self.ctrl.minAxisRatio)
             parameters = numpy.zeros(3, dtype=float)
             ms.MultiGaussianObjective.writeParameters(e, parameters)
             f0 = numpy.zeros(self.inputs.getSize(), dtype=float)
@@ -161,7 +162,7 @@ class FitProfileTestMixin(object):
                 obj.computeFunction(parameters, f1b)
                 parameters[i] -= eps
                 d1[:,i] = (f1a - f1b) / (2.0 * eps)
-            self.assertClose(d0, d1, atol=1E-4)
+            self.assertClose(d0, d1, atol=1E-4, rtol=1E-10)
             print d0
             
 

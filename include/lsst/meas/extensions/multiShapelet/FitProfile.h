@@ -37,8 +37,8 @@ public:
     LSST_CONTROL_FIELD(psfName, std::string, "Root name of the FitPsfAlgorithm fields.");
     LSST_CONTROL_FIELD(usePsfShapeletTerms, bool,
                        "If true, use the full double-shapelet PSF model; if false, use double-Gaussian.");
-    LSST_CONTROL_FIELD(minInitialRadius, double,
-                       "Minimum initial radius as a fraction of the PSF inner radius.");
+    LSST_CONTROL_FIELD(minRadius, double, "Minimum half-light radius in units of PSF inner radius.");
+    LSST_CONTROL_FIELD(minAxisRatio, double, "Minimum axis ratio for ellipse (b/a).");
     LSST_CONTROL_FIELD(deconvolveShape, bool,
                        "Attempt to approximately deconvolve the canonical shape before "
                        "using it to set the initial parameters.");
@@ -64,7 +64,7 @@ public:
     FitProfileControl() :
         algorithms::AlgorithmControl("multishapelet.profile", 2.5),
         profile("tractor-exponential"), psfName("multishapelet.psf"),
-        usePsfShapeletTerms(false), minInitialRadius(0.01), deconvolveShape(true),
+        usePsfShapeletTerms(false), minRadius(0.01), minAxisRatio(0.05), deconvolveShape(true),
         usePixelWeights(false), badMaskPlanes(), growFootprint(3)
     {
         badMaskPlanes.push_back("BAD");
@@ -96,7 +96,10 @@ struct FitProfileModel {
     double flux; ///< total flux of approximate model, integrated to infinity
     double fluxErr; ///< uncertainty on flux
     afw::geom::ellipses::Quadrupole ellipse; ///< half-light radius ellipse
-    bool failed;  ///< set to true if the measurement failed
+    bool failedMaxIter; ///< set to true if the optimizer hit the maximum number of iterations
+    bool failedTinyStep; ///< set to true if the optimizer step size got too small to make progress
+    bool atMinRadius; ///< set to true if the best-fit radius was at the minimum constraint (not a failure)
+    bool failedMinAxisRatio; ///< set to true if the best-fit axis ratio was at the minimum constraint
 
     FitProfileModel(
         FitProfileControl const & ctrl,
@@ -239,6 +242,10 @@ private:
     afw::table::Key< double > _fluxErrKey;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
     afw::table::Key< afw::table::Flag > _flagKey;
+    afw::table::Key< afw::table::Flag > _flagMaxIterKey;
+    afw::table::Key< afw::table::Flag > _flagTinyStepKey;
+    afw::table::Key< afw::table::Flag > _flagMinRadiusKey;
+    afw::table::Key< afw::table::Flag > _flagMinAxisRatioKey;
     CONST_PTR(FitPsfControl) _psfCtrl;
 };
 

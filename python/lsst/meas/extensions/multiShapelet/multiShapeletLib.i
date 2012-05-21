@@ -34,6 +34,7 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 
 %include "ndarray.i"
 %include "std_vector.i"
+%include "std_pair.i"
 
 %lsst_exceptions()
 %import "lsst/afw/geom/geomLib.i"
@@ -41,6 +42,8 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 %import "lsst/afw/detection/detectionLib.i"
 %import "lsst/shapelet/shapeletLib.i"
 %import "lsst/meas/algorithms/algorithmsLib.i"
+
+%template(BoolPair) std::pair<bool,bool>;
 
 %declareNumPyConverters(ndarray::Array<double const,1>);
 %declareNumPyConverters(ndarray::Array<double const,1,1>);

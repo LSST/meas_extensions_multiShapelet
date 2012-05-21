@@ -43,6 +43,8 @@ public:
 
     LSST_CONTROL_FIELD(innerOrder, int, "Shapelet order of inner expansion (0 == Gaussian)");
     LSST_CONTROL_FIELD(outerOrder, int, "Shapelet order of outer expansion (0 == Gaussian)");
+    LSST_CONTROL_FIELD(minRadius, double, "Minimum inner radius in pixels.");
+    LSST_CONTROL_FIELD(minAxisRatio, double, "Minimum axis ratio for ellipse (b/a).");
     LSST_CONTROL_FIELD(radiusRatio, double, "outer radius divided by inner radius (fixed)");
     LSST_CONTROL_FIELD(peakRatio, double, 
                        "outer Gaussian peak height divided by inner Gaussian peak height;"
@@ -63,7 +65,8 @@ public:
 
     FitPsfControl() : 
         algorithms::AlgorithmControl("multishapelet.psf", 2.0), 
-        innerOrder(6), outerOrder(6), radiusRatio(2.0), peakRatio(0.1), initialRadius(1.5)
+        innerOrder(6), outerOrder(6), minRadius(0.1), minAxisRatio(0.1), 
+        radiusRatio(2.0), peakRatio(0.1), initialRadius(1.5)
     {}
 
 private:
@@ -92,7 +95,10 @@ struct FitPsfModel {
     ndarray::Array<double,1,1> outer; ///< shapelet coefficients of outer expansion
     afw::geom::ellipses::Quadrupole ellipse; ///< ellipse corresponding to inner expansion
     double radiusRatio; ///< radius of outer expansion divided by radius of inner expansion (fixed)
-    bool failed;  ///< set to true if the measurement failed
+    bool failedMaxIter; ///< set to true if the optimizer hit the maximum number of iterations
+    bool failedTinyStep; ///< set to true if the optimizer step size got too small to make progress
+    bool failedMinRadius; ///< set to true if the best-fit radius was at the minimum constraint
+    bool failedMinAxisRatio; ///< set to true if the best-fit axis ratio was at the minimum constraint
 
     /**
      *  @brief Construct a model from a double-Gaussian optimization parameter vector.
@@ -218,6 +224,10 @@ private:
     afw::table::Key< afw::table::Array<float> > _outerKey;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
     afw::table::Key< afw::table::Flag > _flagKey;
+    afw::table::Key< afw::table::Flag > _flagMaxIterKey;
+    afw::table::Key< afw::table::Flag > _flagTinyStepKey;
+    afw::table::Key< afw::table::Flag > _flagMinRadiusKey;
+    afw::table::Key< afw::table::Flag > _flagMinAxisRatioKey;
 };
 
 inline PTR(FitPsfAlgorithm) FitPsfControl::makeAlgorithm(

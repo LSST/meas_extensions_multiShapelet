@@ -21,16 +21,31 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
+#include "lsst/utils/ieee.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
 MultiGaussianObjective::MultiGaussianObjective(
     ModelInputHandler const & inputs,
-    MultiGaussian const & components
-) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
+    MultiGaussian const & components,
+    double minRadius, double minAxisRatio
+) : Objective(inputs.getSize(), 3), _minRadius(minRadius), _minAxisRatio(minAxisRatio), 
+    _amplitude(1.0), _modelSquaredNorm(1.0),
     _ellipse(), _inputs(inputs), _model(ndarray::allocate(inputs.getSize()))
 {
+    if (_minRadius <= 0.0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::InvalidParameterException,
+            "Minimum radius must be = 0"
+        );
+    }
+    if (_minAxisRatio < 0.0 || _minAxisRatio > 1.0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::InvalidParameterException,
+            "Minimum axis ratio must be between 0 and 1"
+        );
+    }
     _builders.reserve(components.size());
     for (MultiGaussian::const_iterator i = components.begin(); i != components.end(); ++i) {
         _builders.push_back(GaussianModelBuilder(_inputs.getX(), _inputs.getY(), i->flux, i->radius));
@@ -41,10 +56,24 @@ MultiGaussianObjective::MultiGaussianObjective(
     ModelInputHandler const & inputs,
     MultiGaussian const & components,
     MultiGaussian const & psfComponents,
-    afw::geom::ellipses::Quadrupole const & psfEllipse
-) : Objective(inputs.getSize(), 3), _amplitude(1.0), _modelSquaredNorm(1.0),
+    afw::geom::ellipses::Quadrupole const & psfEllipse,
+    double minRadius, double minAxisRatio
+) : Objective(inputs.getSize(), 3), _minRadius(minRadius), _minAxisRatio(minAxisRatio),
+    _amplitude(1.0), _modelSquaredNorm(1.0),
     _ellipse(), _inputs(inputs), _model(ndarray::allocate(inputs.getSize()))
 {
+    if (_minRadius <= 0.0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::InvalidParameterException,
+            "Minimum radius must be > 0"
+        );
+    }
+    if (_minAxisRatio < 0.0 || _minAxisRatio > 1.0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::InvalidParameterException,
+            "Minimum axis ratio must be between 0 and 1"
+        );
+    }
     _builders.reserve(components.size() * psfComponents.size());
     for (MultiGaussian::const_iterator j = psfComponents.begin(); j != psfComponents.end(); ++j) {
         afw::geom::ellipses::Quadrupole psfComponentEllipse(psfEllipse);
@@ -58,6 +87,25 @@ MultiGaussianObjective::MultiGaussianObjective(
             );
         }
     }
+}
+
+Objective::StepResult MultiGaussianObjective::tryStep(
+    ndarray::Array<double const,1,1> const & oldParameters, 
+    ndarray::Array<double,1,1> const & newParameters
+) {
+    StepResult result(VALID);
+    for (int n = 0; n < oldParameters.getSize<0>(); ++n) {
+        if (!lsst::utils::isfinite(newParameters[n]) && lsst::utils::isfinite(oldParameters[n])) {
+            newParameters[n] = oldParameters[n];
+        }
+    }
+    _ellipse.readParameters(newParameters.getData());
+    std::pair<bool,bool> constrained = constrainEllipse(_ellipse, _minRadius, _minAxisRatio);
+    if (constrained.first || constrained.second) {
+        result = MODIFIED;
+        _ellipse.writeParameters(newParameters.getData());
+    }
+    return result;
 }
 
 void MultiGaussianObjective::computeFunction(
@@ -117,5 +165,61 @@ void MultiGaussianObjective::writeParameters(
     ellipse.writeParameters(parameters.getData());
 }
 
+std::pair<bool,bool> 
+MultiGaussianObjective::constrainEllipse(EllipseCore & ellipse, double minRadius, double minAxisRatio) {
+    if (minRadius <= 0.0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::InvalidParameterException,
+            "Minimum radius must be > 0"
+        );
+    }
+    if (minAxisRatio < 0.0 || minAxisRatio > 1.0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::InvalidParameterException,
+            "Minimum axis ratio must be between 0 and 1"
+        );
+    }
+    std::pair<bool,bool> result(false, false);
+    // First we make sure we don't have any NaNs or Infs; using ellipse setters with those
+    // present may cause non-finite values to spread to other parameters.
+    double e1 = ellipse.getEllipticity().getE1();
+    double e2 = ellipse.getEllipticity().getE2();
+    double r = ellipse.getRadius();
+    if (!lsst::utils::isfinite(e1)) {
+        result.second = true;
+        e1 = 0.0;
+    }
+    if (!lsst::utils::isfinite(e2)) {
+        result.second = true;
+        e2 = 0.0;
+    }
+    if (!lsst::utils::isfinite(r)) {
+        result.first = true;
+        r = std::log(minRadius);
+    }
+    if (result.first || result.second) {
+        ellipse = EllipseCore(e1, e2, r);
+    }
+    // Now we can move on to comparing with the constraints.  Note that we transform
+    // the constraints into the logarithmic definition used by the parameters rather
+    // than the reverse.
+    // We use epsilon below to make sure we return true when the value is already at the constraint,
+    // even if it may have been through some ellipse reparameterizations since then.
+    if (minAxisRatio > std::numeric_limits<double>::epsilon()) {
+        double eMax = -std::log(minAxisRatio);
+        if (ellipse.getEllipticity().getE() >= eMax - std::numeric_limits<double>::epsilon()) {
+            ellipse.getEllipticity().setE(eMax);
+            result.second = true;
+        }
+    }
+    if (minRadius > std::numeric_limits<double>::epsilon()) {
+        double rMin = std::log(minRadius);
+        if (ellipse.getRadius() <= rMin + std::numeric_limits<double>::epsilon()) {
+            ellipse.setRadius(rMin);
+            result.first = true;
+        }
+    }
+    return result;
+}
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

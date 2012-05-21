@@ -58,7 +58,7 @@ FitPsfModel::FitPsfModel(
 ) :
     ellipse(),
     radiusRatio(ctrl.radiusRatio),
-    failed(false)
+    failedMaxIter(false), failedTinyStep(false), failedMinRadius(false), failedMinAxisRatio(false)
 {
     MultiGaussian components = ctrl.getComponents();
     ellipse = MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2]);
@@ -79,7 +79,7 @@ FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord co
     outer(ndarray::allocate(shapelet::computeSize(ctrl.outerOrder))),
     ellipse(),
     radiusRatio(ctrl.radiusRatio),
-    failed(false)
+    failedMaxIter(false), failedTinyStep(false), failedMinRadius(false), failedMinAxisRatio(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
     afw::table::Key< afw::table::Array<float> > innerKey = s.find< afw::table::Array<float> >("inner").key;
@@ -97,7 +97,10 @@ FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord co
         outer.deep() = source.get(outerKey)[ndarray::view(0, outer.getSize<0>())];
     }
     ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
-    failed = source.get(s.find<afw::table::Flag>("flags").key);
+    failedMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
+    failedTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
+    failedMinRadius = source.get(s.find<afw::table::Flag>("flags.constraint.r").key);
+    failedMinRadius = source.get(s.find<afw::table::Flag>("flags.constraint.q").key);
 }
 
 FitPsfModel::FitPsfModel(FitPsfModel const & other) :
@@ -105,7 +108,10 @@ FitPsfModel::FitPsfModel(FitPsfModel const & other) :
     outer(ndarray::copy(other.outer)),
     ellipse(other.ellipse),
     radiusRatio(other.radiusRatio),
-    failed(other.failed)
+    failedMaxIter(other.failedMaxIter),
+    failedTinyStep(other.failedTinyStep),
+    failedMinRadius(other.failedMinRadius),
+    failedMinAxisRatio(other.failedMinAxisRatio)    
 {}
 
 FitPsfModel & FitPsfModel::operator=(FitPsfModel const & other) {
@@ -114,7 +120,10 @@ FitPsfModel & FitPsfModel::operator=(FitPsfModel const & other) {
         outer = ndarray::copy(other.outer);
         ellipse = other.ellipse;
         radiusRatio = other.radiusRatio;
-        failed = other.failed;
+        failedMaxIter = other.failedMaxIter;
+        failedTinyStep = other.failedTinyStep;
+        failedMinRadius = other.failedMinRadius;
+        failedMinAxisRatio = other.failedMinAxisRatio;
     }
     return *this;
 }
@@ -153,44 +162,71 @@ shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
 
 FitPsfAlgorithm::FitPsfAlgorithm(FitPsfControl const & ctrl, afw::table::Schema & schema) :
     algorithms::Algorithm(ctrl),
-    _innerKey(schema.addField< afw::table::Array<float> >(
-                  ctrl.name + ".inner",
-                  "Gauss-Hermite coefficients of the inner expansion (see lsst.shapelet package)",
-                  shapelet::computeSize(ctrl.innerOrder)
-              )),
-    _outerKey(schema.addField< afw::table::Array<float> >(
-                  ctrl.name + ".outer",
-                  "Gauss-Hermite coefficients of the outer expansion (see lsst.shapelet package)",
-                  shapelet::computeSize(ctrl.outerOrder)
-              )),
-    _ellipseKey(schema.addField< afw::table::Moments<float> >(
-                    ctrl.name + ".ellipse",
-                    "Ellipse corresponding to the inner expansion"
-                )),
-    _flagKey(schema.addField<afw::table::Flag>(
-                 ctrl.name + ".flags",
-                 "set if the multi-shapelet PSF fit was unsuccessful"
-             ))
+    _innerKey(
+        schema.addField< afw::table::Array<float> >(
+            ctrl.name + ".inner",
+            "Gauss-Hermite coefficients of the inner expansion (see lsst.shapelet package)",
+            shapelet::computeSize(ctrl.innerOrder)
+        )),
+    _outerKey(
+        schema.addField< afw::table::Array<float> >(
+            ctrl.name + ".outer",
+            "Gauss-Hermite coefficients of the outer expansion (see lsst.shapelet package)",
+            shapelet::computeSize(ctrl.outerOrder)
+        )),
+    _ellipseKey(
+        schema.addField< afw::table::Moments<float> >(
+            ctrl.name + ".ellipse",
+            "Ellipse corresponding to the inner expansion"
+        )),
+    _flagKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags",
+            "set if the multi-shapelet PSF fit was unsuccessful in any way"
+        )),
+    _flagMaxIterKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.maxiter",
+            "set if the optimizer ran into the maximum number of iterations limit"
+        )),
+    _flagTinyStepKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.tinystep",
+            "set if the optimizer step or trust region got so small no progress could be made"
+        )),
+    _flagMinRadiusKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.constraint.r",
+            "set if the best-fit radius was the minimum allowed by the constraint"
+        )),
+    _flagMinAxisRatioKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.constraint.q",
+            "set if the best-fit axis ratio (b/a) was the minimum allowed by the constraint"
+        ))
 {}
 
 PTR(MultiGaussianObjective) FitPsfAlgorithm::makeObjective(
     FitPsfControl const & ctrl,
     ModelInputHandler const & inputs
 ) {
-    return boost::make_shared<MultiGaussianObjective>(inputs, ctrl.getComponents());
+    return boost::make_shared<MultiGaussianObjective>(
+        inputs, ctrl.getComponents(), ctrl.minRadius, ctrl.minAxisRatio
+    );
 }
 
 HybridOptimizer FitPsfAlgorithm::makeOptimizer(
     FitPsfControl const & ctrl,
     ModelInputHandler const & inputs
 ) {
+    MultiGaussianObjective::EllipseCore ellipse(0.0, 0.0, std::log(ctrl.initialRadius));
+    MultiGaussianObjective::constrainEllipse(ellipse, ctrl.minRadius, ctrl.minAxisRatio);
     PTR(Objective) obj = makeObjective(ctrl, inputs);
     HybridOptimizerControl optCtrl; // TODO: nest this in FitPsfControl
     optCtrl.tau = 1E-6;
     optCtrl.useCholesky = true;
     optCtrl.gTol = 1E-6;
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
-    MultiGaussianObjective::EllipseCore ellipse(0.0, 0.0, ctrl.initialRadius);
     ellipse.writeParameters(initial.getData());
     return HybridOptimizer(obj, initial, optCtrl);
 }
@@ -231,7 +267,14 @@ FitPsfModel FitPsfAlgorithm::apply(
         boost::static_pointer_cast<MultiGaussianObjective const>(opt.getObjective())->getAmplitude(),
         opt.getParameters()
     );
-    model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
+    MultiGaussianObjective::EllipseCore ellipse = MultiGaussianObjective::readParameters(opt.getParameters());
+    std::pair<bool,bool> constrained 
+        = MultiGaussianObjective::constrainEllipse(ellipse, ctrl.minRadius, ctrl.minAxisRatio);
+    model.failedMaxIter = opt.getState() & HybridOptimizer::FAILURE_MAXITER;
+    model.failedTinyStep = (opt.getState() & HybridOptimizer::FAILURE_MINSTEP)
+        || (opt.getState() & HybridOptimizer::FAILURE_MINTRUST);
+    model.failedMinRadius = constrained.first;
+    model.failedMinAxisRatio = constrained.second;
     fitShapeletTerms(ctrl, inputs, model);
     return model;
 }
@@ -263,7 +306,12 @@ void FitPsfAlgorithm::_apply(
     source[_innerKey] = model.inner;
     source[_outerKey] = model.outer;
     source.set(_ellipseKey, model.ellipse);
-    source.set(_flagKey, model.failed);
+    source.set(_flagMaxIterKey, model.failedMaxIter);
+    source.set(_flagTinyStepKey, model.failedTinyStep);
+    source.set(_flagMinRadiusKey, model.failedMinRadius);
+    source.set(_flagMinAxisRatioKey, model.failedMinAxisRatio);
+    source.set(_flagKey, model.failedMaxIter || model.failedTinyStep 
+               || model.failedMinAxisRatio || model.failedMinRadius);
 }
 
 PTR(algorithms::AlgorithmControl) FitPsfControl::_clone() const {

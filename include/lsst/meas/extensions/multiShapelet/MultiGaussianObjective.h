@@ -36,6 +36,11 @@ public:
     typedef afw::geom::ellipses::Separable<afw::geom::ellipses::ConformalShear,
                                            afw::geom::ellipses::LogTraceRadius> EllipseCore;
 
+    virtual StepResult tryStep(
+        ndarray::Array<double const,1,1> const & oldParameters, 
+        ndarray::Array<double,1,1> const & newParameters
+    );
+
     virtual void computeFunction(
         ndarray::Array<double const,1,1> const & parameters, 
         ndarray::Array<double,1,1> const & function
@@ -57,22 +62,31 @@ public:
 
     static void writeParameters(EllipseCore const & ellipse, ndarray::Array<double,1,1> const & parameters);
 
+    static std::pair<bool,bool> 
+    constrainEllipse(EllipseCore & ellipse, double minRadius, double minAxisRatio);
+
     MultiGaussianObjective(
         ModelInputHandler const & inputs,
-        MultiGaussian const & components
+        MultiGaussian const & components,
+        double minRadius=1E-8,
+        double minAxisRatio=1E-8
     );
 
     MultiGaussianObjective(
         ModelInputHandler const & inputs,
         MultiGaussian const & components,
         MultiGaussian const & psfComponents,
-        afw::geom::ellipses::Quadrupole const & psfEllipse
+        afw::geom::ellipses::Quadrupole const & psfEllipse,
+        double minRadius=1E-8,
+        double minAxisRatio=1E-8
     );
 
 private:
 
     typedef std::vector<GaussianModelBuilder> BuilderList;
 
+    double _minRadius;
+    double _minAxisRatio;
     double _amplitude;
     double _modelSquaredNorm;
     EllipseCore _ellipse;

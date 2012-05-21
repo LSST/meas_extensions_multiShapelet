@@ -54,24 +54,31 @@ FitProfileModel::FitProfileModel(
 ) :
     profile(ctrl.profile), flux(amplitude), fluxErr(0.0),
     ellipse(MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2])),
-    failed(false)
+    failedMaxIter(false), failedTinyStep(false), atMinRadius(false), failedMinAxisRatio(false)
 {}
 
 FitProfileModel::FitProfileModel(
     FitProfileControl const & ctrl, afw::table::SourceRecord const & source
 ) :
-    profile(ctrl.profile), flux(1.0), fluxErr(0.0), ellipse(), failed(false)
+    profile(ctrl.profile), flux(1.0), fluxErr(0.0), ellipse(),
+    failedMaxIter(false), failedTinyStep(false), atMinRadius(false), failedMinAxisRatio(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
     flux = source.get(s.find< double >("flux").key);
     fluxErr = source.get(s.find< double >("flux.err").key);
     ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
-    failed = source.get(s.find< afw::table::Flag >("flags").key);
+    failedMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
+    failedTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
+    atMinRadius = source.get(s.find<afw::table::Flag>("flags.constraint.r").key);
+    failedMinAxisRatio = source.get(s.find<afw::table::Flag>("flags.constraint.q").key);
 }
 
 FitProfileModel::FitProfileModel(FitProfileModel const & other) :
-    profile(other.profile), flux(other.flux), fluxErr(other.fluxErr),
-    ellipse(other.ellipse), failed(other.failed)
+    profile(other.profile), flux(other.flux), fluxErr(other.fluxErr), ellipse(other.ellipse),
+    failedMaxIter(other.failedMaxIter),
+    failedTinyStep(other.failedTinyStep),
+    atMinRadius(other.atMinRadius),
+    failedMinAxisRatio(other.failedMinAxisRatio)    
 {}
 
 FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
@@ -80,7 +87,10 @@ FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
         flux = other.flux;
         fluxErr = other.fluxErr;
         ellipse = other.ellipse;
-        failed = other.failed;
+        failedMaxIter = other.failedMaxIter;
+        failedTinyStep = other.failedTinyStep;
+        atMinRadius = other.atMinRadius;
+        failedMinAxisRatio = other.failedMinAxisRatio;
     }
     return *this;
 }
@@ -106,20 +116,44 @@ FitProfileAlgorithm::FitProfileAlgorithm(
     algorithms::AlgorithmControlMap const & others
 ) :
     algorithms::Algorithm(ctrl),
-    _fluxKey(schema.addField<double>(
-                      ctrl.name + ".flux", "surface brightness at half-light radius", "dn/pix^2"
-                  )),
-    _fluxErrKey(schema.addField<double>(
-                         ctrl.name + ".flux.err", "uncertainty on flux", "dn/pix^2"
-                     )),
-    _ellipseKey(schema.addField< afw::table::Moments<float> >(
-                    ctrl.name + ".ellipse",
-                    "half-light radius ellipse"
-                )),
-    _flagKey(schema.addField< afw::table::Flag >(
-                 ctrl.name + ".flags",
-                 "error flags; set if model fit failed in any way"
-             )),
+    _fluxKey(
+        schema.addField<double>(
+            ctrl.name + ".flux", "surface brightness at half-light radius", "dn/pix^2"
+        )),
+    _fluxErrKey(
+        schema.addField<double>(
+            ctrl.name + ".flux.err", "uncertainty on flux", "dn/pix^2"
+        )),
+    _ellipseKey(
+        schema.addField< afw::table::Moments<float> >(
+            ctrl.name + ".ellipse",
+            "half-light radius ellipse"
+        )),
+    _flagKey(
+        schema.addField< afw::table::Flag >(
+            ctrl.name + ".flags",
+            "error flag; set if model fit failed in any way"
+        )),
+    _flagMaxIterKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.maxiter",
+            "set if the optimizer ran into the maximum number of iterations limit"
+        )),
+    _flagTinyStepKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.tinystep",
+            "set if the optimizer step or trust region got so small no progress could be made"
+        )),
+    _flagMinRadiusKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.constraint.r",
+            "set if the best-fit radius was the minimum allowed by the constraint (not a failure)"
+        )),
+    _flagMinAxisRatioKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.constraint.q",
+            "set if the best-fit ellipticity was the maximum allowed by the constraint"
+        )),
     _psfCtrl()
 {
     algorithms::AlgorithmControlMap::const_iterator i = others.find(ctrl.psfName);
@@ -144,7 +178,8 @@ PTR(MultiGaussianObjective) FitProfileAlgorithm::makeObjective(
     ModelInputHandler const & inputs
 ) {
     return boost::make_shared<MultiGaussianObjective>(
-        inputs, ctrl.getComponents(), psfModel.getComponents(), psfModel.ellipse
+        inputs, ctrl.getComponents(), psfModel.getComponents(), psfModel.ellipse,
+        ctrl.minRadius, ctrl.minAxisRatio
     );
 }
 
@@ -154,23 +189,13 @@ HybridOptimizer FitProfileAlgorithm::makeOptimizer(
     afw::geom::ellipses::Quadrupole const & shape,
     ModelInputHandler const & inputs
 ) {
-    afw::geom::ellipses::Axes axes(shape);
+    MultiGaussianObjective::EllipseCore ellipse(shape);
     if (ctrl.deconvolveShape) {
-        axes = ctrl.getComponents().deconvolve(
+        ellipse = ctrl.getComponents().deconvolve(
             shape, psfModel.ellipse, psfModel.getComponents()
         );
     }
-    double minRadius = psfModel.ellipse.getDeterminantRadius() * ctrl.minInitialRadius;
-    try {
-        axes.normalize();
-        if (axes.getA() < minRadius) axes.setA(minRadius);
-        if (axes.getB() < minRadius) axes.setB(minRadius);
-    } catch (pex::exceptions::InvalidParameterException &) {
-        axes.setA(minRadius);
-        axes.setB(minRadius);
-        axes.setTheta(0.0);
-    }
-    MultiGaussianObjective::EllipseCore ellipse(axes);
+    MultiGaussianObjective::constrainEllipse(ellipse, ctrl.minRadius, ctrl.minAxisRatio);
     PTR(Objective) obj = makeObjective(ctrl, psfModel, inputs);
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
     ellipse.writeParameters(initial.getData());
@@ -217,7 +242,14 @@ FitProfileModel FitProfileAlgorithm::apply(
         boost::static_pointer_cast<MultiGaussianObjective const>(opt.getObjective())->getAmplitude(),
         opt.getParameters()
     );
-    model.failed = !(opt.getState() & HybridOptimizer::SUCCESS);
+    MultiGaussianObjective::EllipseCore ellipse = MultiGaussianObjective::readParameters(opt.getParameters());
+    std::pair<bool,bool> constrained 
+        = MultiGaussianObjective::constrainEllipse(ellipse, ctrl.minRadius, ctrl.minAxisRatio);
+    model.failedMaxIter = opt.getState() & HybridOptimizer::FAILURE_MAXITER;
+    model.failedTinyStep = (opt.getState() & HybridOptimizer::FAILURE_MINSTEP)
+        || (opt.getState() & HybridOptimizer::FAILURE_MINTRUST);
+    model.atMinRadius = constrained.first;
+    model.failedMinAxisRatio = constrained.second;
     if (ctrl.usePsfShapeletTerms) {
         fitShapeletTerms(ctrl, psfModel, inputs, model);
     }
@@ -262,7 +294,14 @@ void FitProfileAlgorithm::_apply(
     source.set(_fluxKey, model.flux);
     source.set(_fluxErrKey, model.fluxErr);
     source.set(_ellipseKey, model.ellipse);
-    source.set(_flagKey, model.failed);
+    source.set(_flagMaxIterKey, model.failedMaxIter);
+    source.set(_flagTinyStepKey, model.failedTinyStep);
+    source.set(_flagMinRadiusKey, model.atMinRadius);
+    source.set(_flagMinAxisRatioKey, model.failedMinAxisRatio);
+    // Note: don't consider tinystep to be a failure mode right now; in practice
+    // it doesn't seem to indicate a problem.
+    bool failed = model.failedMinAxisRatio || model.failedMaxIter;
+    source.set(_flagKey, failed);
 }
 
 

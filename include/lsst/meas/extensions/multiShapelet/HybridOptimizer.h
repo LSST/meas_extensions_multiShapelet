@@ -35,6 +35,15 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 class Objective : private boost::noncopyable {
 public:
 
+    enum StepResult { INVALID=0, VALID, MODIFIED };
+
+    virtual StepResult tryStep(
+        ndarray::Array<double const,1,1> const & oldParameters,
+        ndarray::Array<double,1,1> const & newParameters
+    ) {
+        return VALID;
+    }
+
     virtual void computeFunction(
         ndarray::Array<double const,1,1> const & parameters, 
         ndarray::Array<double,1,1> const & function
@@ -96,13 +105,16 @@ public:
     enum MethodEnum { LM=0, BFGS=1 };
 
     enum StateFlags {
-        STEP_ACCEPTED     = 0x01, ///< Last trial step was accepted.
-        SUCCESS_FTOL      = 0x04, ///< Function values are below tolerance (i.e. perfect fit).
-        SUCCESS_GTOL      = 0x08, ///< Gradient values are below tolerance (at minimum).
+        STEP_ACCEPTED     = 0x01, ///< Last trial step was accepted as an improvement.
+        STEP_MODIFIED     = 0x02, ///< Objective function modified the step computed by the optimizer.
+        STEP_INVALID      = 0x04, ///< Objective function declared the step computed by the optimizer
+                                  ///  invalid; none of the trial quantities were updated.
+        SUCCESS_FTOL      = 0x08, ///< Function values are below tolerance (i.e. perfect fit).
+        SUCCESS_GTOL      = 0x10, ///< Gradient values are below tolerance (at minimum).
         SUCCESS           = SUCCESS_FTOL | SUCCESS_GTOL, ///< Any success condition.
-        FAILURE_MINSTEP   = 0x10, ///< Calculated step became too small.
-        FAILURE_MINTRUST  = 0x20, ///< Trust region became too small.
-        FAILURE_MAXITER   = 0x40, ///< Too many iterations.
+        FAILURE_MINSTEP   = 0x20, ///< Calculated step became too small.
+        FAILURE_MINTRUST  = 0x40, ///< Trust region became too small.
+        FAILURE_MAXITER   = 0x80, ///< Too many iterations.
         FAILURE           = FAILURE_MINSTEP | FAILURE_MINTRUST | FAILURE_MAXITER, ///< Any failure condition.
         FINISHED          = SUCCESS | FAILURE  ///< Any success or failure condition.
     };
