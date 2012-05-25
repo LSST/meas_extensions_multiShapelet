@@ -57,7 +57,7 @@ FitPsfModel::FitPsfModel(
     ndarray::Array<double const,1,1> const & parameters
 ) :
     ellipse(),
-    radiusRatio(ctrl.radiusRatio),
+    radiusRatio(ctrl.radiusRatio), chisq(std::numeric_limits<double>::quiet_NaN()),
     failedMaxIter(false), failedTinyStep(false), failedMinRadius(false), failedMinAxisRatio(false)
 {
     MultiGaussian components = ctrl.getComponents();
@@ -78,7 +78,7 @@ FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord co
     inner(ndarray::allocate(shapelet::computeSize(ctrl.innerOrder))),
     outer(ndarray::allocate(shapelet::computeSize(ctrl.outerOrder))),
     ellipse(),
-    radiusRatio(ctrl.radiusRatio),
+    radiusRatio(ctrl.radiusRatio), chisq(std::numeric_limits<double>::quiet_NaN()),
     failedMaxIter(false), failedTinyStep(false), failedMinRadius(false), failedMinAxisRatio(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
@@ -96,6 +96,7 @@ FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord co
     } else {
         outer.deep() = source.get(outerKey)[ndarray::view(0, outer.getSize<0>())];
     }
+    chisq = source.get(s.find< float >("chisq").key);
     ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
     failedMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
     failedTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
@@ -108,6 +109,7 @@ FitPsfModel::FitPsfModel(FitPsfModel const & other) :
     outer(ndarray::copy(other.outer)),
     ellipse(other.ellipse),
     radiusRatio(other.radiusRatio),
+    chisq(other.chisq),
     failedMaxIter(other.failedMaxIter),
     failedTinyStep(other.failedTinyStep),
     failedMinRadius(other.failedMinRadius),
@@ -120,6 +122,7 @@ FitPsfModel & FitPsfModel::operator=(FitPsfModel const & other) {
         outer = ndarray::copy(other.outer);
         ellipse = other.ellipse;
         radiusRatio = other.radiusRatio;
+        chisq = other.chisq;
         failedMaxIter = other.failedMaxIter;
         failedTinyStep = other.failedTinyStep;
         failedMinRadius = other.failedMinRadius;
@@ -179,6 +182,15 @@ FitPsfAlgorithm::FitPsfAlgorithm(FitPsfControl const & ctrl, afw::table::Schema 
             ctrl.name + ".ellipse",
             "Ellipse corresponding to the inner expansion"
         )),
+    _chisqKey(
+        schema.addField<float>(ctrl.name + ".chisq", "Reduced chi^2 of the final shapelet fit")
+    ),
+    _integralKey(
+        schema.addField<float>(
+            ctrl.name + ".integral",
+            "Integral of the shapelet PSF model to infinite radius"
+        )
+    ),
     _flagKey(
         schema.addField<afw::table::Flag>(
             ctrl.name + ".flags",
@@ -252,8 +264,16 @@ void FitPsfAlgorithm::fitShapeletTerms(
             *= (inputs.getWeights().asEigen() * Eigen::RowVectorXd::Ones(matrix.getSize<1>())).array();
     }
     afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
+    // areaFactor term corrects for the difference between ShapeletFunction and ModelBuilder conventions.
+    double areaFactor = model.ellipse.getArea() / afw::geom::PI;
     model.inner.deep() = lstsq.getSolution()[ndarray::view(0, innerCoeffs)];
+    model.inner.asEigen() *= areaFactor;
     model.outer.deep() = lstsq.getSolution()[ndarray::view(innerCoeffs, innerCoeffs + outerCoeffs)];
+    model.outer.asEigen() *= areaFactor * ctrl.radiusRatio * ctrl.radiusRatio;
+    // The degrees of freedom corresponds to the final shapelet fit with ellipse held fixed.
+    model.chisq =
+        (matrix.asEigen() * lstsq.getSolution().asEigen() - inputs.getData().asEigen()).squaredNorm()
+        / (matrix.getSize<0>() - matrix.getSize<1>());
 }
 
 FitPsfModel FitPsfAlgorithm::apply(
@@ -285,6 +305,8 @@ FitPsfModel FitPsfAlgorithm::apply(
     afw::geom::Point2D const & center
 ) {
     PTR(afw::image::Image<afw::math::Kernel::Pixel>) image = psf.computeImage(center);
+    double s = image->getArray().asEigen().sum();
+    image->getArray().asEigen() /= s;
     ModelInputHandler inputs(*image, center, image->getBBox(afw::image::PARENT));
     return apply(ctrl, inputs);
 }
@@ -306,6 +328,8 @@ void FitPsfAlgorithm::_apply(
     source[_innerKey] = model.inner;
     source[_outerKey] = model.outer;
     source.set(_ellipseKey, model.ellipse);
+    source.set(_chisqKey, model.chisq);
+    source.set(_integralKey, model.asMultiShapelet().evaluate().integrate());
     source.set(_flagMaxIterKey, model.failedMaxIter);
     source.set(_flagTinyStepKey, model.failedTinyStep);
     source.set(_flagMinRadiusKey, model.failedMinRadius);

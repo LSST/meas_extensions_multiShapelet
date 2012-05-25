@@ -54,6 +54,7 @@ FitProfileModel::FitProfileModel(
 ) :
     profile(ctrl.profile), flux(amplitude), fluxErr(0.0),
     ellipse(MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2])),
+    chisq(std::numeric_limits<double>::quiet_NaN()),
     failedMaxIter(false), failedTinyStep(false), atMinRadius(false), failedMinAxisRatio(false)
 {}
 
@@ -61,12 +62,14 @@ FitProfileModel::FitProfileModel(
     FitProfileControl const & ctrl, afw::table::SourceRecord const & source
 ) :
     profile(ctrl.profile), flux(1.0), fluxErr(0.0), ellipse(),
+    chisq(std::numeric_limits<double>::quiet_NaN()),
     failedMaxIter(false), failedTinyStep(false), atMinRadius(false), failedMinAxisRatio(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
     flux = source.get(s.find< double >("flux").key);
     fluxErr = source.get(s.find< double >("flux.err").key);
     ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
+    chisq = source.get(s.find<float>("chisq").key);
     failedMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
     failedTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
     atMinRadius = source.get(s.find<afw::table::Flag>("flags.constraint.r").key);
@@ -75,6 +78,7 @@ FitProfileModel::FitProfileModel(
 
 FitProfileModel::FitProfileModel(FitProfileModel const & other) :
     profile(other.profile), flux(other.flux), fluxErr(other.fluxErr), ellipse(other.ellipse),
+    chisq(other.chisq),
     failedMaxIter(other.failedMaxIter),
     failedTinyStep(other.failedTinyStep),
     atMinRadius(other.atMinRadius),
@@ -87,6 +91,7 @@ FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
         flux = other.flux;
         fluxErr = other.fluxErr;
         ellipse = other.ellipse;
+        chisq = other.chisq;
         failedMaxIter = other.failedMaxIter;
         failedTinyStep = other.failedTinyStep;
         atMinRadius = other.atMinRadius;
@@ -128,6 +133,11 @@ FitProfileAlgorithm::FitProfileAlgorithm(
         schema.addField< afw::table::Moments<float> >(
             ctrl.name + ".ellipse",
             "half-light radius ellipse"
+        )),
+    _chisqKey(
+        schema.addField<float>(
+            ctrl.name + ".chisq",
+            "reduced chi^2"
         )),
     _flagKey(
         schema.addField< afw::table::Flag >(
@@ -225,8 +235,10 @@ void FitProfileAlgorithm::fitShapeletTerms(
     }
     // the following is just linear least squares with one free parameter
     double variance = 1.0 / vector.asEigen().squaredNorm();
-    model.flux = vector.asEigen().dot(inputs.getData().asEigen());
+    model.flux = vector.asEigen().dot(inputs.getData().asEigen()) * variance;
     model.fluxErr = std::sqrt(variance);
+    model.chisq = (model.flux * vector.asEigen() - inputs.getData().asEigen()).squaredNorm()
+        / (inputs.getSize() - 4);
 }
 
 FitProfileModel FitProfileAlgorithm::apply(
@@ -252,6 +264,8 @@ FitProfileModel FitProfileAlgorithm::apply(
     model.failedMinAxisRatio = constrained.second;
     if (ctrl.usePsfShapeletTerms) {
         fitShapeletTerms(ctrl, psfModel, inputs, model);
+    } else {
+        model.chisq = opt.getChiSq() / (inputs.getSize() - 4);
     }
     return model;
 }
@@ -294,6 +308,7 @@ void FitProfileAlgorithm::_apply(
     source.set(_fluxKey, model.flux);
     source.set(_fluxErrKey, model.fluxErr);
     source.set(_ellipseKey, model.ellipse);
+    source.set(_chisqKey, model.chisq);
     source.set(_flagMaxIterKey, model.failedMaxIter);
     source.set(_flagTinyStepKey, model.failedTinyStep);
     source.set(_flagMinRadiusKey, model.atMinRadius);

@@ -64,6 +64,7 @@ class FitPsfViewer(ViewerBase):
         self.saved = self.Model(self.ctrl, source)
         self.center = source.getCentroid()
         self.image = psf.computeImage(self.center)
+        self.image.getArray()[:,:] /= self.image.getArray().sum()
         self.inputs = ms.ModelInputHandler(self.image, self.center, self.image.getBBox(lsst.afw.image.PARENT))
         opt = self.Algorithm.makeOptimizer(self.ctrl, self.inputs)
         maxIter = opt.getControl().maxIter
@@ -74,6 +75,7 @@ class FitPsfViewer(ViewerBase):
             if opt.getState() & ms.HybridOptimizer.FINISHED:
                 break
         self.model = self.Model(self.iterations[-1].model)
+        self.integral = self.model.asMultiShapelet().evaluate().integrate()
         self.Algorithm.fitShapeletTerms(self.ctrl, self.inputs, self.model)
 
 

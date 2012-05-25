@@ -96,6 +96,7 @@ struct FitProfileModel {
     double flux; ///< total flux of approximate model, integrated to infinity
     double fluxErr; ///< uncertainty on flux
     afw::geom::ellipses::Quadrupole ellipse; ///< half-light radius ellipse
+    double chisq; ///< reduced chi^2
     bool failedMaxIter; ///< set to true if the optimizer hit the maximum number of iterations
     bool failedTinyStep; ///< set to true if the optimizer step size got too small to make progress
     bool atMinRadius; ///< set to true if the best-fit radius was at the minimum constraint (not a failure)
@@ -241,6 +242,7 @@ private:
     afw::table::Key< double > _fluxKey;
     afw::table::Key< double > _fluxErrKey;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
+    afw::table::Key< float > _chisqKey;
     afw::table::Key< afw::table::Flag > _flagKey;
     afw::table::Key< afw::table::Flag > _flagMaxIterKey;
     afw::table::Key< afw::table::Flag > _flagTinyStepKey;
