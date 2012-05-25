@@ -205,14 +205,21 @@ HybridOptimizer FitProfileAlgorithm::makeOptimizer(
             shape, psfModel.ellipse, psfModel.getComponents()
         );
     }
-    MultiGaussianObjective::constrainEllipse(ellipse, ctrl.minRadius, ctrl.minAxisRatio);
+    // We never want to start with an ellipse smaller than the PSF or an ellipticity
+    // on the constraint, because we might never find our way out.
+    std::pair<bool,bool> constrained = MultiGaussianObjective::constrainEllipse(
+        ellipse, psfModel.ellipse.getTraceRadius(), ctrl.minAxisRatio
+    );
+    if (constrained.first || constrained.second) {
+        ellipse = psfModel.ellipse;
+    }
     PTR(Objective) obj = makeObjective(ctrl, psfModel, inputs);
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
     ellipse.writeParameters(initial.getData());
     HybridOptimizerControl optCtrl; // TODO: nest this in FitProfileControl
-    optCtrl.tau = 1E-6;
+    optCtrl.tau = 1E-2;
     optCtrl.useCholesky = true;
-    optCtrl.gTol = 1E-6;
+    optCtrl.gTol = 1E-4;
     return HybridOptimizer(obj, initial, optCtrl);
 }
 
