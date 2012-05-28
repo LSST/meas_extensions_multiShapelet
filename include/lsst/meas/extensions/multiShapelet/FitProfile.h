@@ -66,8 +66,8 @@ public:
     FitProfileControl() :
         algorithms::AlgorithmControl("multishapelet.profile", 2.5),
         profile("tractor-exponential"), psfName("multishapelet.psf"),
-        usePsfShapeletTerms(false), minRadius(0.01), minAxisRatio(0.05), deconvolveShape(true),
-        usePixelWeights(false), badMaskPlanes(), growFootprint(3), scaleByPsfFit(true)
+        usePsfShapeletTerms(false), minRadius(0.0001), minAxisRatio(0.0001), deconvolveShape(true),
+        usePixelWeights(false), badMaskPlanes(), growFootprint(5), scaleByPsfFit(true)
     {
         badMaskPlanes.push_back("BAD");
         badMaskPlanes.push_back("SAT");
