@@ -121,14 +121,12 @@ FitProfileAlgorithm::FitProfileAlgorithm(
     algorithms::AlgorithmControlMap const & others
 ) :
     algorithms::Algorithm(ctrl),
-    _fluxKey(
-        schema.addField<double>(
-            ctrl.name + ".flux", "surface brightness at half-light radius", "dn/pix^2"
-        )),
-    _fluxErrKey(
-        schema.addField<double>(
-            ctrl.name + ".flux.err", "uncertainty on flux", "dn/pix^2"
-        )),
+    _fluxKeys(
+        afw::table::addFluxFields(
+            schema, ctrl.name + ".flux",
+            "flux of multi-Gaussian approximation to the profile, integrated to infinite radius"
+        )
+    ),
     _ellipseKey(
         schema.addField< afw::table::Moments<float> >(
             ctrl.name + ".ellipse",
@@ -138,11 +136,6 @@ FitProfileAlgorithm::FitProfileAlgorithm(
         schema.addField<float>(
             ctrl.name + ".chisq",
             "reduced chi^2"
-        )),
-    _flagKey(
-        schema.addField< afw::table::Flag >(
-            ctrl.name + ".flags",
-            "error flag; set if model fit failed in any way"
         )),
     _flagMaxIterKey(
         schema.addField<afw::table::Flag>(
@@ -285,13 +278,24 @@ FitProfileModel FitProfileAlgorithm::apply(
     FitPsfModel const & psfModel,
     afw::geom::ellipses::Quadrupole const & shape,
     afw::detection::Footprint const & footprint,
-    afw::image::MaskedImage<PixelT> const & image,
+    afw::image::Exposure<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
     afw::image::MaskPixel badPixelMask = afw::image::Mask<>::getPlaneBitMask(ctrl.badMaskPlanes);
-    ModelInputHandler inputs(image, center, footprint, ctrl.growFootprint, 
+    ModelInputHandler inputs(image.getMaskedImage(), center, footprint, ctrl.growFootprint, 
                              badPixelMask, ctrl.usePixelWeights);
-    return apply(ctrl, psfModel, shape, inputs);
+    FitProfileModel model = apply(ctrl, psfModel, shape, inputs);
+    if (ctrl.scaleByPsfFit) {
+        CONST_PTR(afw::detection::Psf) psf = image.getPsf();
+        PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = psf->computeImage(center);
+        double s = psfImage->getArray().asEigen().sum();
+        psfImage->getArray().asEigen() /= s;
+        ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
+        FitProfileModel psfProfileModel = apply(ctrl, psfModel, psfModel.ellipse, psfInputs);
+        model.flux /= psfProfileModel.flux;
+        model.fluxErr /= psfProfileModel.flux;
+    }
+    return model;
 }
 
 template <typename PixelT>
@@ -300,7 +304,7 @@ void FitProfileAlgorithm::_apply(
     afw::image::Exposure<PixelT> const & exposure,
     afw::geom::Point2D const & center
 ) const {
-    source.set(_flagKey, true);
+    source.set(_fluxKeys.flag, true);
     if (!exposure.hasPsf()) {
         throw LSST_EXCEPT(
             pex::exceptions::LogicErrorException,
@@ -311,20 +315,17 @@ void FitProfileAlgorithm::_apply(
     FitProfileModel model = apply(
         getControl(), psfModel,
         source.getShape(), *source.getFootprint(),
-        exposure.getMaskedImage(), center
+        exposure, center
     );
-    source.set(_fluxKey, model.flux);
-    source.set(_fluxErrKey, model.fluxErr);
+    source.set(_fluxKeys.meas, model.flux);
+    source.set(_fluxKeys.err, model.fluxErr);
+    source.set(_fluxKeys.flag, false);
     source.set(_ellipseKey, model.ellipse);
     source.set(_chisqKey, model.chisq);
     source.set(_flagMaxIterKey, model.failedMaxIter);
     source.set(_flagTinyStepKey, model.failedTinyStep);
     source.set(_flagMinRadiusKey, model.atMinRadius);
     source.set(_flagMinAxisRatioKey, model.failedMinAxisRatio);
-    // Note: don't consider tinystep to be a failure mode right now; in practice
-    // it doesn't seem to indicate a problem.
-    bool failed = model.failedMinAxisRatio || model.failedMaxIter;
-    source.set(_flagKey, failed);
 }
 
 

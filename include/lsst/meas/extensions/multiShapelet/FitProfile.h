@@ -46,8 +46,10 @@ public:
                        "If true, individually weigh pixels using the variance image.");
     LSST_CONTROL_FIELD(badMaskPlanes, std::vector<std::string>,
                        "Mask planes that indicate pixels that should be ignored in the fit.");
-    LSST_CONTROL_FIELD(growFootprint, int,
-                       "Number of pixels to grow the footprint by.");
+    LSST_CONTROL_FIELD(growFootprint, int, "Number of pixels to grow the footprint by.");
+    LSST_CONTROL_FIELD(scaleByPsfFit, bool,
+                       "If true, fit the PSF with the same model and divide the galaxy flux "
+                       "by the PSF flux.");
 
     PTR(FitProfileControl) clone() const {
         return boost::static_pointer_cast<FitProfileControl>(_clone());
@@ -65,7 +67,7 @@ public:
         algorithms::AlgorithmControl("multishapelet.profile", 2.5),
         profile("tractor-exponential"), psfName("multishapelet.psf"),
         usePsfShapeletTerms(false), minRadius(0.01), minAxisRatio(0.05), deconvolveShape(true),
-        usePixelWeights(false), badMaskPlanes(), growFootprint(3)
+        usePixelWeights(false), badMaskPlanes(), growFootprint(3), scaleByPsfFit(true)
     {
         badMaskPlanes.push_back("BAD");
         badMaskPlanes.push_back("SAT");
@@ -197,6 +199,9 @@ public:
      *  @param[in,out] shape          Shape measurement used to set initial ellipse parameters
      *                                (possibly modified as defined by ctrl data members).
      *  @param[in]     inputs         Inputs that determine the data to be fit.
+     *
+     *  This overload ignores the scaleByPsfFit control parameter (it doesn't have access to the
+     *  PSF image).
      */
     static FitProfileModel apply(
         FitProfileControl const & ctrl,
@@ -224,7 +229,7 @@ public:
         FitPsfModel const & psfModel,
         afw::geom::ellipses::Quadrupole const & shape,
         afw::detection::Footprint const & footprint,
-        afw::image::MaskedImage<PixelT> const & image,
+        afw::image::Exposure<PixelT> const & image,
         afw::geom::Point2D const & center
     );
 
@@ -239,11 +244,9 @@ private:
 
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitProfileAlgorithm);
 
-    afw::table::Key< double > _fluxKey;
-    afw::table::Key< double > _fluxErrKey;
+    afw::table::KeyTuple< afw::table::Flux > _fluxKeys;
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
     afw::table::Key< float > _chisqKey;
-    afw::table::Key< afw::table::Flag > _flagKey;
     afw::table::Key< afw::table::Flag > _flagMaxIterKey;
     afw::table::Key< afw::table::Flag > _flagTinyStepKey;
     afw::table::Key< afw::table::Flag > _flagMinRadiusKey;
