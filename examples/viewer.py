@@ -49,6 +49,8 @@ class ViewerBase(object):
             pyplot.title(title)
         for ellipse in ellipses:
             ellipse.plot(fill=False, rescale=False)
+            pyplot.plot([ellipse.getCenter().getX()], [ellipse.getCenter().getY()], 'kx',
+                        scalex=False, scaley=False)
         return vmin, vmax
 
 class FitPsfViewer(ViewerBase):
