@@ -208,10 +208,11 @@ HybridOptimizer FitProfileAlgorithm::makeOptimizer(
     // We never want to start with an ellipse smaller than the PSF or an ellipticity
     // on the constraint, because we might never find our way out.
     std::pair<bool,bool> constrained = MultiGaussianObjective::constrainEllipse(
-        ellipse, psfModel.ellipse.getTraceRadius(), ctrl.minAxisRatio
+        ellipse, psfModel.ellipse.getTraceRadius() * 0.5, ctrl.minAxisRatio
     );
     if (constrained.first || constrained.second) {
         ellipse = psfModel.ellipse;
+        ellipse.scale(0.5);
     }
     PTR(Objective) obj = makeObjective(ctrl, psfModel, inputs);
     ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
