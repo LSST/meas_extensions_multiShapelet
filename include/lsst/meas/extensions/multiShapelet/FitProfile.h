@@ -43,11 +43,15 @@ public:
     LSST_CONTROL_FIELD(deconvolveShape, bool,
                        "Attempt to approximately deconvolve the canonical shape before "
                        "using it to set the initial parameters.");
+    LSST_CONTROL_FIELD(minInitialRadius, double,
+                       "Minimum half-light radius in units of PSF inner radius for initial parameters.");
     LSST_CONTROL_FIELD(usePixelWeights, bool,
                        "If true, individually weigh pixels using the variance image.");
     LSST_CONTROL_FIELD(badMaskPlanes, std::vector<std::string>,
                        "Mask planes that indicate pixels that should be ignored in the fit.");
     LSST_CONTROL_FIELD(growFootprint, int, "Number of pixels to grow the footprint by.");
+    LSST_CONTROL_FIELD(radiusInputFactor, double,
+                       "Number of half-light radii used to determine the pixels to fit");
     LSST_CONTROL_FIELD(scaleByPsfFit, bool,
                        "If true, fit the PSF with the same model and divide the galaxy flux "
                        "by the PSF flux.");
@@ -67,8 +71,10 @@ public:
     FitProfileControl() :
         algorithms::AlgorithmControl("multishapelet.profile", 2.5),
         profile("tractor-exponential"), psfName("multishapelet.psf"),
-        usePsfShapeletTerms(false), minRadius(0.0001), minAxisRatio(0.0001), deconvolveShape(true),
-        usePixelWeights(false), badMaskPlanes(), growFootprint(5), scaleByPsfFit(true)
+        usePsfShapeletTerms(false), minRadius(0.0001), minAxisRatio(0.0001),
+        deconvolveShape(true), minInitialRadius(0.5),
+        usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(0.0),
+        scaleByPsfFit(true)
     {
         badMaskPlanes.push_back("BAD");
         badMaskPlanes.push_back("SAT");

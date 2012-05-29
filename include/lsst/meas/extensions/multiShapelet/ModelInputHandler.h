@@ -24,6 +24,7 @@
 #define MULTISHAPELET_ModelInputHandler_h_INCLUDED
 
 #include "lsst/afw/geom.h"
+#include "lsst/afw/geom/ellipses.h"
 #include "lsst/afw/image/Image.h"
 #include "lsst/afw/image/MaskedImage.h"
 #include "lsst/afw/detection/Footprint.h"
@@ -58,6 +59,10 @@ public:
     template <typename PixelT>
     ModelInputHandler(afw::image::Image<PixelT> const & image, afw::geom::Point2D const & center, 
                       afw::detection::Footprint const & region, int growFootprint=0);
+
+    template <typename PixelT>
+    ModelInputHandler(afw::image::Image<PixelT> const & image, afw::geom::ellipses::Ellipse const & ellipse,
+                      afw::detection::Footprint const & region, int growFootprint=0);
     
     template <typename PixelT>
     ModelInputHandler(
@@ -68,6 +73,13 @@ public:
     template <typename PixelT>
     ModelInputHandler(
         afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center, 
+        afw::detection::Footprint const & region, int growFootprint=0,
+        afw::image::MaskPixel badPixelMask=0x0, bool usePixelWeights=false
+    );
+
+    template <typename PixelT>
+    ModelInputHandler(
+        afw::image::MaskedImage<PixelT> const & image, afw::geom::ellipses::Ellipse const & ellipse, 
         afw::detection::Footprint const & region, int growFootprint=0,
         afw::image::MaskPixel badPixelMask=0x0, bool usePixelWeights=false
     );

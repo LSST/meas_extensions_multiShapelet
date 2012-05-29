@@ -246,23 +246,29 @@ ModelInputHandler FitProfileAlgorithm::adjustInputs(
             );
         } catch (pex::exceptions::InvalidParameterException &) {
             ellipse = psfModel.ellipse;
-            ellipse.scale(0.5);
+            ellipse.scale(ctrl.minInitialRadius);
         }
     }
     // We never want to start with an ellipse smaller than the PSF or an ellipticity
     // on the constraint, because we might never find our way out.
     std::pair<bool,bool> constrained = MultiGaussianObjective::constrainEllipse(
-        ellipse, psfModel.ellipse.getTraceRadius() * 0.5, ctrl.minAxisRatio
+        ellipse, psfModel.ellipse.getTraceRadius() * ctrl.minInitialRadius, ctrl.minAxisRatio
     );
     if (constrained.first || constrained.second) {
         ellipse = psfModel.ellipse;
-        ellipse.scale(0.5);
+        ellipse.scale(ctrl.minInitialRadius);
     }
     shape = ellipse;
     afw::image::MaskPixel badPixelMask = afw::image::Mask<>::getPlaneBitMask(ctrl.badMaskPlanes);
-    ModelInputHandler inputs(image.getMaskedImage(), center, footprint, ctrl.growFootprint, 
-                             badPixelMask, ctrl.usePixelWeights);
-    return inputs;
+    if (ctrl.radiusInputFactor > 0.0) {
+        afw::geom::ellipses::Ellipse boundsEllipse(shape, center);
+        boundsEllipse.getCore().scale(ctrl.radiusInputFactor);
+        return ModelInputHandler(image.getMaskedImage(), boundsEllipse, footprint, ctrl.growFootprint, 
+                                 badPixelMask, ctrl.usePixelWeights);
+    } else {
+        return ModelInputHandler(image.getMaskedImage(), center, footprint, ctrl.growFootprint, 
+                                 badPixelMask, ctrl.usePixelWeights);
+    }
 }
 
 void FitProfileAlgorithm::fitShapeletTerms(
@@ -340,7 +346,7 @@ FitProfileModel FitProfileAlgorithm::apply(
         psfImage->getArray().asEigen() /= s;
         ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
         MultiGaussianObjective::EllipseCore psfEllipse(psfModel.ellipse);
-        psfEllipse.scale(0.5);
+        psfEllipse.scale(ctrl.minInitialRadius);
         FitProfileModel psfProfileModel = apply(ctrl, psfModel, psfEllipse, psfInputs);
         model.psfFactor = psfProfileModel.flux;
         model.flux /= model.psfFactor;
@@ -365,6 +371,9 @@ void FitProfileAlgorithm::_apply(
     }
     FitPsfModel psfModel(*_psfCtrl, source);
     afw::geom::ellipses::Quadrupole shape = source.getShape();
+    if (source.getShapeFlag()) {
+        shape = psfModel.ellipse;
+    }
     FitProfileModel model = apply(
         getControl(), psfModel,
         shape, *source.getFootprint(),
