@@ -95,10 +95,11 @@ private:
 struct FitProfileModel {
 
     std::string profile; ///< name of profile to look up in MultiGaussianRegistry
-    double flux; ///< total flux of approximate model, integrated to infinity
+    double flux; ///< total flux of approximate model, integrated to infinity (includes PSF factor, if enabled)
     double fluxErr; ///< uncertainty on flux
     afw::geom::ellipses::Quadrupole ellipse; ///< half-light radius ellipse
     double chisq; ///< reduced chi^2
+    double psfFactor; ///< flux from profile fit to PSF model; 1 if this is turned off
     bool flagMaxIter; ///< set to true if the optimizer hit the maximum number of iterations
     bool flagTinyStep; ///< set to true if the optimizer step size got too small to make progress
     bool flagMinRadius; ///< set to true if the best-fit radius was at the minimum constraint
@@ -249,6 +250,7 @@ private:
     afw::table::Key< afw::table::Moments<float> > _ellipseKey;
     afw::table::Key< afw::table::Moments<float> > _psfEllipseKey;
     afw::table::Key< float > _chisqKey;
+    afw::table::Key< float > _psfFactorKey;
     afw::table::Key< afw::table::Flag > _flagMaxIterKey;
     afw::table::Key< afw::table::Flag > _flagTinyStepKey;
     afw::table::Key< afw::table::Flag > _flagMinRadiusKey;
