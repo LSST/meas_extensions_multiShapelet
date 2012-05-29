@@ -25,6 +25,7 @@
 
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
+#include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
@@ -175,8 +176,18 @@ public:
     static HybridOptimizer makeOptimizer(
         FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
-        afw::geom::ellipses::Quadrupole const & shape,
+        MultiGaussianObjective::EllipseCore const & ellipse,
         ModelInputHandler const & inputs
+    );
+
+    template <typename PixelT>
+    static ModelInputHandler adjustInputs(
+        FitProfileControl const & ctrl,
+        FitPsfModel const & psfModel,
+        afw::geom::ellipses::Quadrupole & shape,
+        afw::detection::Footprint const & footprint,
+        afw::image::Exposure<PixelT> const & image,
+        afw::geom::Point2D const & center
     );
 
     /**
@@ -198,7 +209,7 @@ public:
      *
      *  @param[in]     ctrl           Details of the model to fit.
      *  @param[in]     psfModel       Localized double-shapelet PSF model.
-     *  @param[in,out] shape          Shape measurement used to set initial ellipse parameters
+     *  @param[in]     ellipse        Initial ellipse parameters
      *                                (possibly modified as defined by ctrl data members).
      *  @param[in]     inputs         Inputs that determine the data to be fit.
      *
@@ -208,7 +219,7 @@ public:
     static FitProfileModel apply(
         FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
-        afw::geom::ellipses::Quadrupole const & shape,
+        MultiGaussianObjective::EllipseCore const & ellipse,
         ModelInputHandler const & inputs
     );
 
@@ -229,7 +240,7 @@ public:
     static FitProfileModel apply(
         FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
-        afw::geom::ellipses::Quadrupole const & shape,
+        afw::geom::ellipses::Quadrupole & shape,
         afw::detection::Footprint const & footprint,
         afw::image::Exposure<PixelT> const & image,
         afw::geom::Point2D const & center

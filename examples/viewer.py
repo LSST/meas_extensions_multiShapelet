@@ -131,14 +131,15 @@ class FitProfileViewer(ViewerBase):
         self.center = source.getCentroid()
         self.shape = source.getShape()
         badPixelMask = lsst.afw.image.MaskU.getPlaneBitMask(self.ctrl.badMaskPlanes)
-        self.inputs = ms.ModelInputHandler(exposure.getMaskedImage(), self.center, 
-                                           source.getFootprint(), self.ctrl.growFootprint,
-                                           badPixelMask, self.ctrl.usePixelWeights)
+        self.inputs = self.Algorithm.adjustInputs(
+            self.ctrl, self.psfModel, self.shape, source.getFootprint(), exposure, self.center
+            )
         self.footprint = self.inputs.getFootprint()
         self.bbox = self.footprint.getBBox()
         self.image = lsst.afw.image.ImageD(self.bbox)
         self.image.getArray()[:,:] = exposure.getMaskedImage().getImage().getArray()[self.bbox.getSlices()]
-        opt = self.Algorithm.makeOptimizer(self.ctrl, self.psfModel, self.shape, self.inputs)
+        initialEllipse = ms.MultiGaussianObjective.EllipseCore(self.shape)
+        opt = self.Algorithm.makeOptimizer(self.ctrl, self.psfModel, initialEllipse, self.inputs)
         maxIter = opt.getControl().maxIter
         self.iterations = [self.Iteration(opt, self)]
         for self.iterCount in range(maxIter):
@@ -161,6 +162,7 @@ class FitProfileViewer(ViewerBase):
         residuals = lsst.afw.image.ImageD(data, True)
         residuals -= fit
         ellipses = [
+            lsst.afw.geom.ellipses.Ellipse(self.shape, self.center),
             lsst.afw.geom.ellipses.Ellipse(model.ellipse, self.center),
             ]
         wData = lsst.afw.image.ImageD(self.bbox)

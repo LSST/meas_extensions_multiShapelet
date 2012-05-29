@@ -215,9 +215,29 @@ PTR(MultiGaussianObjective) FitProfileAlgorithm::makeObjective(
 HybridOptimizer FitProfileAlgorithm::makeOptimizer(
     FitProfileControl const & ctrl,
     FitPsfModel const & psfModel,
-    afw::geom::ellipses::Quadrupole const & shape,
+    MultiGaussianObjective::EllipseCore const & ellipse,
     ModelInputHandler const & inputs
 ) {
+    PTR(Objective) obj = makeObjective(ctrl, psfModel, inputs);
+    ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
+    ellipse.writeParameters(initial.getData());
+    HybridOptimizerControl optCtrl; // TODO: nest this in FitProfileControl
+    optCtrl.tau = 1E-2;
+    optCtrl.useCholesky = true;
+    optCtrl.gTol = 1E-4;
+    return HybridOptimizer(obj, initial, optCtrl);
+}
+
+template <typename PixelT>
+ModelInputHandler FitProfileAlgorithm::adjustInputs(
+    FitProfileControl const & ctrl,
+    FitPsfModel const & psfModel,
+    afw::geom::ellipses::Quadrupole & shape,
+    afw::detection::Footprint const & footprint,
+    afw::image::Exposure<PixelT> const & image,
+    afw::geom::Point2D const & center
+) {
+   
     MultiGaussianObjective::EllipseCore ellipse(shape);
     if (ctrl.deconvolveShape) {
         try {
@@ -238,14 +258,11 @@ HybridOptimizer FitProfileAlgorithm::makeOptimizer(
         ellipse = psfModel.ellipse;
         ellipse.scale(0.5);
     }
-    PTR(Objective) obj = makeObjective(ctrl, psfModel, inputs);
-    ndarray::Array<double,1,1> initial = ndarray::allocate(obj->getParameterSize());
-    ellipse.writeParameters(initial.getData());
-    HybridOptimizerControl optCtrl; // TODO: nest this in FitProfileControl
-    optCtrl.tau = 1E-2;
-    optCtrl.useCholesky = true;
-    optCtrl.gTol = 1E-4;
-    return HybridOptimizer(obj, initial, optCtrl);
+    shape = ellipse;
+    afw::image::MaskPixel badPixelMask = afw::image::Mask<>::getPlaneBitMask(ctrl.badMaskPlanes);
+    ModelInputHandler inputs(image.getMaskedImage(), center, footprint, ctrl.growFootprint, 
+                             badPixelMask, ctrl.usePixelWeights);
+    return inputs;
 }
 
 void FitProfileAlgorithm::fitShapeletTerms(
@@ -276,10 +293,10 @@ void FitProfileAlgorithm::fitShapeletTerms(
 FitProfileModel FitProfileAlgorithm::apply(
     FitProfileControl const & ctrl,
     FitPsfModel const & psfModel,
-    afw::geom::ellipses::Quadrupole const & shape,
+    MultiGaussianObjective::EllipseCore const & inEllipse,
     ModelInputHandler const & inputs
 ) {
-    HybridOptimizer opt = makeOptimizer(ctrl, psfModel, shape, inputs);
+    HybridOptimizer opt = makeOptimizer(ctrl, psfModel, inEllipse, inputs);
     opt.run();
     Model model(
         ctrl, 
@@ -302,27 +319,29 @@ FitProfileModel FitProfileAlgorithm::apply(
     return model;
 }
 
-
 template <typename PixelT>
 FitProfileModel FitProfileAlgorithm::apply(
     FitProfileControl const & ctrl,
     FitPsfModel const & psfModel,
-    afw::geom::ellipses::Quadrupole const & shape,
+    afw::geom::ellipses::Quadrupole & shape,
     afw::detection::Footprint const & footprint,
     afw::image::Exposure<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
-    afw::image::MaskPixel badPixelMask = afw::image::Mask<>::getPlaneBitMask(ctrl.badMaskPlanes);
-    ModelInputHandler inputs(image.getMaskedImage(), center, footprint, ctrl.growFootprint, 
-                             badPixelMask, ctrl.usePixelWeights);
-    FitProfileModel model = apply(ctrl, psfModel, shape, inputs);
+    ModelInputHandler inputs = adjustInputs(
+        ctrl, psfModel, shape, footprint, image, center
+    );
+    MultiGaussianObjective::EllipseCore ellipse(shape);
+    FitProfileModel model = apply(ctrl, psfModel, ellipse, inputs);
     if (ctrl.scaleByPsfFit) {
         CONST_PTR(afw::detection::Psf) psf = image.getPsf();
         PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = psf->computeImage(center);
         double s = psfImage->getArray().asEigen().sum();
         psfImage->getArray().asEigen() /= s;
         ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
-        FitProfileModel psfProfileModel = apply(ctrl, psfModel, psfModel.ellipse, psfInputs);
+        MultiGaussianObjective::EllipseCore psfEllipse(psfModel.ellipse);
+        psfEllipse.scale(0.5);
+        FitProfileModel psfProfileModel = apply(ctrl, psfModel, psfEllipse, psfInputs);
         model.psfFactor = psfProfileModel.flux;
         model.flux /= model.psfFactor;
         model.fluxErr /= model.psfFactor;
@@ -345,9 +364,10 @@ void FitProfileAlgorithm::_apply(
         );
     }
     FitPsfModel psfModel(*_psfCtrl, source);
+    afw::geom::ellipses::Quadrupole shape = source.getShape();
     FitProfileModel model = apply(
         getControl(), psfModel,
-        source.getShape(), *source.getFootprint(),
+        shape, *source.getFootprint(),
         exposure, center
     );
     source.set(_fluxKeys.meas, model.flux);

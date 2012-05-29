@@ -109,3 +109,6 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 %shared_ptr(lsst::meas::extensions::multiShapelet::FitProfileControl);
 %shared_ptr(lsst::meas::extensions::multiShapelet::FitProfileAlgorithm);
 %include "lsst/meas/extensions/multiShapelet/FitProfile.h"
+
+%template(adjustInputs) lsst::meas::extensions::multiShapelet::FitProfileAlgorithm::adjustInputs<float>;
+%template(adjustInputs) lsst::meas::extensions::multiShapelet::FitProfileAlgorithm::adjustInputs<double>;
