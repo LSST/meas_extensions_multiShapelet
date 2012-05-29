@@ -55,7 +55,7 @@ FitProfileModel::FitProfileModel(
     profile(ctrl.profile), flux(amplitude), fluxErr(0.0),
     ellipse(MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2])),
     chisq(std::numeric_limits<double>::quiet_NaN()),
-    failedMaxIter(false), failedTinyStep(false), atMinRadius(false), failedMinAxisRatio(false)
+    flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false)
 {}
 
 FitProfileModel::FitProfileModel(
@@ -63,27 +63,38 @@ FitProfileModel::FitProfileModel(
 ) :
     profile(ctrl.profile), flux(1.0), fluxErr(0.0), ellipse(),
     chisq(std::numeric_limits<double>::quiet_NaN()),
-    failedMaxIter(false), failedTinyStep(false), atMinRadius(false), failedMinAxisRatio(false)
+    flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
     flux = source.get(s.find< double >("flux").key);
     fluxErr = source.get(s.find< double >("flux.err").key);
     ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
     chisq = source.get(s.find<float>("chisq").key);
-    failedMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
-    failedTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
-    atMinRadius = source.get(s.find<afw::table::Flag>("flags.constraint.r").key);
-    failedMinAxisRatio = source.get(s.find<afw::table::Flag>("flags.constraint.q").key);
+    flagMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
+    flagTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
+    flagMinRadius = source.get(s.find<afw::table::Flag>("flags.constraint.r").key);
+    flagMinAxisRatio = source.get(s.find<afw::table::Flag>("flags.constraint.q").key);
+    if (ctrl.scaleByPsfFit) {
+        try {
+            psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(
+                source.get(s.find< afw::table::Moments<float> >("psf.ellipse").key)
+            );
+        } catch (pex::exceptions::NotFoundException &) {}
+    }
 }
 
 FitProfileModel::FitProfileModel(FitProfileModel const & other) :
     profile(other.profile), flux(other.flux), fluxErr(other.fluxErr), ellipse(other.ellipse),
     chisq(other.chisq),
-    failedMaxIter(other.failedMaxIter),
-    failedTinyStep(other.failedTinyStep),
-    atMinRadius(other.atMinRadius),
-    failedMinAxisRatio(other.failedMinAxisRatio)    
-{}
+    flagMaxIter(other.flagMaxIter),
+    flagTinyStep(other.flagTinyStep),
+    flagMinRadius(other.flagMinRadius),
+    flagMinAxisRatio(other.flagMinAxisRatio)
+{
+    if (other.psfEllipse) {
+        psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(*other.psfEllipse);
+    }
+}
 
 FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
     if (&other != this) {
@@ -92,10 +103,13 @@ FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
         fluxErr = other.fluxErr;
         ellipse = other.ellipse;
         chisq = other.chisq;
-        failedMaxIter = other.failedMaxIter;
-        failedTinyStep = other.failedTinyStep;
-        atMinRadius = other.atMinRadius;
-        failedMinAxisRatio = other.failedMinAxisRatio;
+        flagMaxIter = other.flagMaxIter;
+        flagTinyStep = other.flagTinyStep;
+        flagMinRadius = other.flagMinRadius;
+        flagMinAxisRatio = other.flagMinAxisRatio;
+        if (other.psfEllipse) {
+            psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(*other.psfEllipse);
+        }
     }
     return *this;
 }
@@ -131,6 +145,11 @@ FitProfileAlgorithm::FitProfileAlgorithm(
         schema.addField< afw::table::Moments<float> >(
             ctrl.name + ".ellipse",
             "half-light radius ellipse"
+        )),
+    _psfEllipseKey(
+        schema.addField< afw::table::Moments<float> >(
+            ctrl.name + ".psf.ellipse",
+            "ellipse from fitting the profile model to the PSF model"
         )),
     _chisqKey(
         schema.addField<float>(
@@ -258,11 +277,11 @@ FitProfileModel FitProfileAlgorithm::apply(
     MultiGaussianObjective::EllipseCore ellipse = MultiGaussianObjective::readParameters(opt.getParameters());
     std::pair<bool,bool> constrained 
         = MultiGaussianObjective::constrainEllipse(ellipse, ctrl.minRadius, ctrl.minAxisRatio);
-    model.failedMaxIter = opt.getState() & HybridOptimizer::FAILURE_MAXITER;
-    model.failedTinyStep = (opt.getState() & HybridOptimizer::FAILURE_MINSTEP)
+    model.flagMaxIter = opt.getState() & HybridOptimizer::FAILURE_MAXITER;
+    model.flagTinyStep = (opt.getState() & HybridOptimizer::FAILURE_MINSTEP)
         || (opt.getState() & HybridOptimizer::FAILURE_MINTRUST);
-    model.atMinRadius = constrained.first;
-    model.failedMinAxisRatio = constrained.second;
+    model.flagMinRadius = constrained.first;
+    model.flagMinAxisRatio = constrained.second;
     if (ctrl.usePsfShapeletTerms) {
         fitShapeletTerms(ctrl, psfModel, inputs, model);
     } else {
@@ -294,6 +313,7 @@ FitProfileModel FitProfileAlgorithm::apply(
         FitProfileModel psfProfileModel = apply(ctrl, psfModel, psfModel.ellipse, psfInputs);
         model.flux /= psfProfileModel.flux;
         model.fluxErr /= psfProfileModel.flux;
+        model.psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(psfProfileModel.ellipse);
     }
     return model;
 }
@@ -321,11 +341,14 @@ void FitProfileAlgorithm::_apply(
     source.set(_fluxKeys.err, model.fluxErr);
     source.set(_fluxKeys.flag, false);
     source.set(_ellipseKey, model.ellipse);
+    if (getControl().scaleByPsfFit) {
+        source.set(_psfEllipseKey, *model.psfEllipse);
+    }
     source.set(_chisqKey, model.chisq);
-    source.set(_flagMaxIterKey, model.failedMaxIter);
-    source.set(_flagTinyStepKey, model.failedTinyStep);
-    source.set(_flagMinRadiusKey, model.atMinRadius);
-    source.set(_flagMinAxisRatioKey, model.failedMinAxisRatio);
+    source.set(_flagMaxIterKey, model.flagMaxIter);
+    source.set(_flagTinyStepKey, model.flagTinyStep);
+    source.set(_flagMinRadiusKey, model.flagMinRadius);
+    source.set(_flagMinAxisRatioKey, model.flagMinAxisRatio);
 }
 
 
