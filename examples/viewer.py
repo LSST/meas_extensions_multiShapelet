@@ -117,14 +117,16 @@ class FitProfileViewer(ViewerBase):
     Control = ms.FitProfileControl
     Algorithm = ms.FitProfileAlgorithm
 
-    def __init__(self, source, exposure, name="exp", psfCtrl=None):
-        if name == "exp":
-            config = ms.FitExponentialConfig()
-        else:
-            config = ms.FitDeVaucouleurConfig()           
+    def __init__(self, source, exposure, name="exp", psfCtrl=None, ctrl=None):
+        if ctrl is None:
+            if name == "exp":
+                config = ms.FitExponentialConfig()
+            else:
+                config = ms.FitDeVaucouleurConfig()
+            ctrl = config.makeControl()
         if psfCtrl is None:
             psfCtrl = ms.FitPsfControl()
-        self.ctrl = config.makeControl()
+        self.ctrl = ctrl
         self.ctrl.name = "multishapelet." + name
         self.psfModel = ms.FitPsfModel(psfCtrl, source)
         self.saved = self.Model(self.ctrl, source)
