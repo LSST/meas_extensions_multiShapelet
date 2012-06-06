@@ -84,13 +84,13 @@ class FitProfileTestMixin(object):
                                            self.footprint, self.ctrl.growFootprint, bad, False)
 
     def testModel(self):
-        components = ms.MultiGaussianRegistry.lookup(self.ctrl.profile)
-        self.assertClose(components.integrate(), 1.0)
+        multiGaussian = ms.MultiGaussianRegistry.lookup(self.ctrl.profile)
+        self.assertClose(multiGaussian.integrate(), 1.0)
         parameters = numpy.array([[0.0, 0.0, 1.0], [0.0, 0.0, -16], [0.2,-0.8,2.3]])
         sImage = lsst.afw.image.ImageD(self.bbox)
         builders = [
             ms.GaussianModelBuilder(self.x, self.y, c.flux, c.radius)
-            for c in components
+            for c in multiGaussian
             ]
         for row in parameters:
             model = ms.FitProfileModel(self.ctrl, 1.0, row)
@@ -109,17 +109,17 @@ class FitProfileTestMixin(object):
 
     def testConvolvedModel(self):
         psfModel = ms.FitPsfModel(ms.FitPsfControl(), 1.0, numpy.array([0.1, -0.05, 1.0]))
-        psfComponents = psfModel.getComponents()
-        components = ms.MultiGaussianRegistry.lookup(self.ctrl.profile)
+        psfMultiGaussian = psfModel.getMultiGaussian()
+        multiGaussian = ms.MultiGaussianRegistry.lookup(self.ctrl.profile)
         parameters = numpy.array([[0.0, 0.0, 0.0], [0.0, 0.0, -16], [0.2,-0.8,2.3]])
         sImage = lsst.afw.image.ImageD(self.bbox)
         builders = []
-        for p in psfComponents:
+        for p in psfMultiGaussian:
             psfEllipse = psfModel.ellipse.clone()
             psfEllipse.scale(p.radius)
             builders.extend(
                 ms.GaussianModelBuilder(self.x, self.y, c.flux, c.radius, psfEllipse, p.flux)
-                for c in components
+                for c in multiGaussian
                 )
         psfShapelets = psfModel.asMultiShapelet()
         for row in parameters:

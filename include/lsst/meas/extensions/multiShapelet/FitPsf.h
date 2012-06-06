@@ -61,7 +61,7 @@ public:
         algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
     ) const;
     
-    MultiGaussian getComponents() const;
+    MultiGaussian getMultiGaussian() const;
 
     FitPsfControl() : 
         algorithms::AlgorithmControl("multishapelet.psf", 2.0), 
@@ -125,7 +125,7 @@ struct FitPsfModel {
     /// @brief Deep assignment operator.
     FitPsfModel & operator=(FitPsfModel const & other);
     
-    MultiGaussian getComponents() const;
+    MultiGaussian getMultiGaussian() const;
 
     /**
      *  @brief Return a MultiShapeletFunction representation of the model.

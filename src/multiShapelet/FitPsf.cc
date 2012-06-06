@@ -44,11 +44,11 @@ int computeOrder(int size2d) {
 
 } // anonymous
 
-MultiGaussian FitPsfControl::getComponents() const {
-    MultiGaussian components;
-    components.add(GaussianComponent(1.0, 1.0));
-    components.add(GaussianComponent(peakRatio * radiusRatio * radiusRatio, radiusRatio));
-    return components;
+MultiGaussian FitPsfControl::getMultiGaussian() const {
+    MultiGaussian multiGaussian;
+    multiGaussian.add(GaussianComponent(1.0, 1.0));
+    multiGaussian.add(GaussianComponent(peakRatio * radiusRatio * radiusRatio, radiusRatio));
+    return multiGaussian;
 }
 
 FitPsfModel::FitPsfModel(
@@ -60,14 +60,14 @@ FitPsfModel::FitPsfModel(
     radiusRatio(ctrl.radiusRatio), chisq(std::numeric_limits<double>::quiet_NaN()),
     failedMaxIter(false), failedTinyStep(false), failedMinRadius(false), failedMinAxisRatio(false)
 {
-    MultiGaussian components = ctrl.getComponents();
+    MultiGaussian multiGaussian = ctrl.getMultiGaussian();
     ellipse = MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2]);
-    shapelet::ShapeletFunction innerShapelet = components[0].makeShapelet(
+    shapelet::ShapeletFunction innerShapelet = multiGaussian[0].makeShapelet(
         afw::geom::ellipses::Ellipse(ellipse), ctrl.innerOrder
     );
     inner = innerShapelet.getCoefficients();
     inner.asEigen() *= amplitude;
-    shapelet::ShapeletFunction outerShapelet = components[1].makeShapelet(
+    shapelet::ShapeletFunction outerShapelet = multiGaussian[1].makeShapelet(
         afw::geom::ellipses::Ellipse(ellipse), ctrl.outerOrder
     );
     outer = outerShapelet.getCoefficients();
@@ -131,11 +131,11 @@ FitPsfModel & FitPsfModel::operator=(FitPsfModel const & other) {
     return *this;
 }
 
-MultiGaussian FitPsfModel::getComponents() const {
-    MultiGaussian components;
-    components.add(GaussianComponent(1.0, 1.0)).readShapeletAmplitude(inner[0], ellipse);
-    components.add(GaussianComponent(1.0, radiusRatio)).readShapeletAmplitude(outer[0], ellipse);
-    return components;
+MultiGaussian FitPsfModel::getMultiGaussian() const {
+    MultiGaussian result;
+    result.add(GaussianComponent(1.0, 1.0)).readShapeletAmplitude(inner[0], ellipse);
+    result.add(GaussianComponent(1.0, radiusRatio)).readShapeletAmplitude(outer[0], ellipse);
+    return result;
 }
 
 shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
@@ -223,7 +223,7 @@ PTR(MultiGaussianObjective) FitPsfAlgorithm::makeObjective(
     ModelInputHandler const & inputs
 ) {
     return boost::make_shared<MultiGaussianObjective>(
-        inputs, ctrl.getComponents(), ctrl.minRadius, ctrl.minAxisRatio
+        inputs, ctrl.getMultiGaussian(), ctrl.minRadius, ctrl.minAxisRatio
     );
 }
 

@@ -68,13 +68,13 @@ MultiGaussian const & MultiGaussianRegistry::lookup(std::string const & name) {
     return result;
 }
 
-void MultiGaussianRegistry::insert(std::string const & name, MultiGaussian const & components) {
+void MultiGaussianRegistry::insert(std::string const & name, MultiGaussian const & multiGaussian) {
     RegistryList & l = getRegistryList();
     RegistryList::iterator i = std::find_if(l.begin(), l.end(), CompareRegistryItem(name));
     if (i != l.end()) {
-        i->second = components;
+        i->second = multiGaussian;
     } else {
-        l.push_back(std::make_pair(name, components));
+        l.push_back(std::make_pair(name, multiGaussian));
     }
 }
 
@@ -91,18 +91,18 @@ void MultiGaussianRegistry::insert(
              fluxes.getSize<0>() % radii.getSize<0>()).str()
         );
     }
-    MultiGaussian components;
+    MultiGaussian multiGaussian;
     double totalFlux = 0.0;
     for (int n = 0; n < fluxes.getSize<0>(); ++n) {
-        components.add(GaussianComponent(fluxes[n], radii[n]));
+        multiGaussian.add(GaussianComponent(fluxes[n], radii[n]));
         totalFlux += fluxes[n];
     }
     if (normalize) {
         for (int n = 0; n < fluxes.getSize<0>(); ++n) {
-            components[n].flux /= totalFlux;
+            multiGaussian[n].flux /= totalFlux;
         }
     }
-    insert(name, components);
+    insert(name, multiGaussian);
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

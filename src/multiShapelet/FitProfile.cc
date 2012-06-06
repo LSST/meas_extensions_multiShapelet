@@ -120,8 +120,8 @@ shapelet::MultiShapeletFunction FitProfileModel::asMultiShapelet(
     afw::geom::Point2D const & center
 ) const {
     shapelet::MultiShapeletFunction::ElementList elements;
-    MultiGaussian const & components = MultiGaussianRegistry::lookup(profile);
-    for (MultiGaussian::const_iterator i = components.begin(); i != components.end(); ++i) {
+    MultiGaussian const & multiGaussian = MultiGaussianRegistry::lookup(profile);
+    for (MultiGaussian::const_iterator i = multiGaussian.begin(); i != multiGaussian.end(); ++i) {
         afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
         elements.push_back(i->makeShapelet(fullEllipse));
         elements.back().getCoefficients().asEigen() *= flux;
@@ -207,7 +207,7 @@ PTR(MultiGaussianObjective) FitProfileAlgorithm::makeObjective(
     ModelInputHandler const & inputs
 ) {
     return boost::make_shared<MultiGaussianObjective>(
-        inputs, ctrl.getComponents(), psfModel.getComponents(), psfModel.ellipse,
+        inputs, ctrl.getMultiGaussian(), psfModel.getMultiGaussian(), psfModel.ellipse,
         ctrl.minRadius, ctrl.minAxisRatio
     );
 }
@@ -241,8 +241,8 @@ ModelInputHandler FitProfileAlgorithm::adjustInputs(
     MultiGaussianObjective::EllipseCore ellipse(shape);
     if (ctrl.deconvolveShape) {
         try {
-            ellipse = ctrl.getComponents().deconvolve(
-                shape, psfModel.ellipse, psfModel.getComponents()
+            ellipse = ctrl.getMultiGaussian().deconvolve(
+                shape, psfModel.ellipse, psfModel.getMultiGaussian()
             );
         } catch (pex::exceptions::InvalidParameterException &) {
             ellipse = psfModel.ellipse;

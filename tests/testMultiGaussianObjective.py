@@ -88,9 +88,9 @@ class MultiGaussianObjectiveTestCase(unittest.TestCase):
         del self.center
         del self.inputs
 
-    def doTest(self, components):
+    def doTest(self, multiGaussian):
         eps = 1E-6
-        obj = ms.MultiGaussianObjective(self.inputs, components)
+        obj = ms.MultiGaussianObjective(self.inputs, multiGaussian)
         parameters = numpy.array(
             [[0.1, 0.2, 3.0],
              [0.0, 0.0, 4.0],
@@ -120,11 +120,11 @@ class MultiGaussianObjectiveTestCase(unittest.TestCase):
             self.assertClose(d0, d1, rtol=1E-10, atol=1E-8)
 
     def testUnconvolved(self):
-        components = ms.MultiGaussian()
-        components.add(ms.GaussianComponent(1.0, 1.0))
-        components.add(ms.GaussianComponent(1.23, 1.32))
-        components.add(ms.GaussianComponent(0.67, 0.9))
-        self.doTest(components)
+        multiGaussian = ms.MultiGaussian()
+        multiGaussian.add(ms.GaussianComponent(1.0, 1.0))
+        multiGaussian.add(ms.GaussianComponent(1.23, 1.32))
+        multiGaussian.add(ms.GaussianComponent(0.67, 0.9))
+        self.doTest(multiGaussian)
         
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-

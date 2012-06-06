@@ -29,7 +29,7 @@ double MultiGaussian::integrate() const {
 afw::geom::ellipses::Quadrupole MultiGaussian::deconvolve(
     afw::geom::ellipses::Quadrupole const & fullMoments,
     afw::geom::ellipses::Quadrupole const & psfMoments,
-    MultiGaussian const & psfComponents
+    MultiGaussian const & psfMultiGaussian
 ) const {
     //
     // We treat fullMoments as unweighted, infinite, zero-noise moments,
@@ -47,7 +47,7 @@ afw::geom::ellipses::Quadrupole MultiGaussian::deconvolve(
     Eigen::Matrix2d rhs = Eigen::Matrix2d::Zero();
     Eigen::Matrix2d w = fullMoments.getMatrix();
     Eigen::Matrix2d p = psfMoments.getMatrix();
-    for (List::const_iterator i = psfComponents.begin(); i != psfComponents.end(); ++i) {
+    for (List::const_iterator i = psfMultiGaussian.begin(); i != psfMultiGaussian.end(); ++i) {
         for (List::const_iterator j = this->begin(); j != this->end(); ++j) {
             double ab = i->flux * j->flux;
             rhs += ab * (w - p * i->radius * i->radius);

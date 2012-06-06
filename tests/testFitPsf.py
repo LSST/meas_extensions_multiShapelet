@@ -78,11 +78,11 @@ class FitPsfTestCase(unittest.TestCase):
             multiShapeletFunc = model.asMultiShapelet(center)
             multiShapeletFunc.evaluate().addToImage(image2)
             f2 = (image2.getArray().ravel() - inputs.getData())
-            components = model.getComponents()
+            multiGaussian = model.getMultiGaussian()
             builder1 = ms.GaussianModelBuilder(inputs.getX(), inputs.getY(),
-                                               components[0].flux, components[0].radius)
+                                               multiGaussian[0].flux, multiGaussian[0].radius)
             builder2 = ms.GaussianModelBuilder(inputs.getX(), inputs.getY(),
-                                               components[1].flux, components[1].radius)
+                                               multiGaussian[1].flux, multiGaussian[1].radius)
             builder1.update(model.ellipse)
             builder2.update(model.ellipse)
             f3 = builder1.getModel() + builder2.getModel() - inputs.getData()

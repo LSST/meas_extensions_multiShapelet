@@ -54,7 +54,7 @@ public:
     afw::geom::ellipses::Quadrupole deconvolve(
         afw::geom::ellipses::Quadrupole const & fullMoments,
         afw::geom::ellipses::Quadrupole const & psfMoments,
-        MultiGaussian const & psfComponents
+        MultiGaussian const & psfMultiGaussian
     ) const;
 
     iterator begin() { return _components.begin(); }

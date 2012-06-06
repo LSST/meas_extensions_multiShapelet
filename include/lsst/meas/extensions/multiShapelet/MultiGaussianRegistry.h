@@ -46,7 +46,7 @@ public:
     static MultiGaussian const & lookup(std::string const & name);
 
     /// @brief Insert a new MultiGaussian (replaces if name is already present).
-    static void insert(std::string const & name, MultiGaussian const & components);
+    static void insert(std::string const & name, MultiGaussian const & multiGaussian);
 
     /// @brief Insert a new MultiGaussian by passing in separate flux and radius arrays.
     static void insert(

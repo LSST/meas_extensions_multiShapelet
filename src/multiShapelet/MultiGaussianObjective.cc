@@ -28,7 +28,7 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 
 MultiGaussianObjective::MultiGaussianObjective(
     ModelInputHandler const & inputs,
-    MultiGaussian const & components,
+    MultiGaussian const & multiGaussian,
     double minRadius, double minAxisRatio
 ) : Objective(inputs.getSize(), 3), _minRadius(minRadius), _minAxisRatio(minAxisRatio), 
     _amplitude(1.0), _modelSquaredNorm(1.0),
@@ -46,16 +46,16 @@ MultiGaussianObjective::MultiGaussianObjective(
             "Minimum axis ratio must be between 0 and 1"
         );
     }
-    _builders.reserve(components.size());
-    for (MultiGaussian::const_iterator i = components.begin(); i != components.end(); ++i) {
+    _builders.reserve(multiGaussian.size());
+    for (MultiGaussian::const_iterator i = multiGaussian.begin(); i != multiGaussian.end(); ++i) {
         _builders.push_back(GaussianModelBuilder(_inputs.getX(), _inputs.getY(), i->flux, i->radius));
     }
 }
 
 MultiGaussianObjective::MultiGaussianObjective(
     ModelInputHandler const & inputs,
-    MultiGaussian const & components,
-    MultiGaussian const & psfComponents,
+    MultiGaussian const & multiGaussian,
+    MultiGaussian const & psfMultiGaussian,
     afw::geom::ellipses::Quadrupole const & psfEllipse,
     double minRadius, double minAxisRatio
 ) : Objective(inputs.getSize(), 3), _minRadius(minRadius), _minAxisRatio(minAxisRatio),
@@ -74,11 +74,11 @@ MultiGaussianObjective::MultiGaussianObjective(
             "Minimum axis ratio must be between 0 and 1"
         );
     }
-    _builders.reserve(components.size() * psfComponents.size());
-    for (MultiGaussian::const_iterator j = psfComponents.begin(); j != psfComponents.end(); ++j) {
+    _builders.reserve(multiGaussian.size() * psfMultiGaussian.size());
+    for (MultiGaussian::const_iterator j = psfMultiGaussian.begin(); j != psfMultiGaussian.end(); ++j) {
         afw::geom::ellipses::Quadrupole psfComponentEllipse(psfEllipse);
         psfComponentEllipse.scale(j->radius);
-        for (MultiGaussian::const_iterator i = components.begin(); i != components.end(); ++i) {
+        for (MultiGaussian::const_iterator i = multiGaussian.begin(); i != multiGaussian.end(); ++i) {
             _builders.push_back(
                 GaussianModelBuilder(
                     _inputs.getX(), _inputs.getY(), i->flux, i->radius,
