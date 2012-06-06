@@ -36,8 +36,6 @@ public:
 
     LSST_CONTROL_FIELD(profile, std::string, "Name of a registered multi-Gaussian profile.");
     LSST_CONTROL_FIELD(psfName, std::string, "Root name of the FitPsfAlgorithm fields.");
-    LSST_CONTROL_FIELD(usePsfShapeletTerms, bool,
-                       "If true, use the full double-shapelet PSF model; if false, use double-Gaussian.");
     LSST_CONTROL_FIELD(minRadius, double, "Minimum half-light radius in units of PSF inner radius.");
     LSST_CONTROL_FIELD(minAxisRatio, double, "Minimum axis ratio for ellipse (b/a).");
     LSST_CONTROL_FIELD(deconvolveShape, bool,
@@ -71,7 +69,7 @@ public:
     FitProfileControl() :
         algorithms::AlgorithmControl("multishapelet.profile", 2.5),
         profile("tractor-exponential"), psfName("multishapelet.psf"),
-        usePsfShapeletTerms(false), minRadius(0.0001), minAxisRatio(0.0001),
+        minRadius(0.0001), minAxisRatio(0.0001),
         deconvolveShape(true), minInitialRadius(0.5),
         usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(0.0),
         scaleByPsfFit(true)

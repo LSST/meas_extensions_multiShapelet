@@ -317,7 +317,7 @@ FitProfileModel FitProfileAlgorithm::apply(
         || (opt.getState() & HybridOptimizer::FAILURE_MINTRUST);
     model.flagMinRadius = constrained.first;
     model.flagMinAxisRatio = constrained.second;
-    if (ctrl.usePsfShapeletTerms) {
+    if (psfModel.inner.getSize<0>() > 1 || psfModel.outer.getSize<0>() > 1) {
         fitShapeletTerms(ctrl, psfModel, inputs, model);
     } else {
         model.chisq = opt.getChiSq() / (inputs.getSize() - 4);
