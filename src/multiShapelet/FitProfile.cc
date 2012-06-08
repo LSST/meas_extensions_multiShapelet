@@ -284,10 +284,12 @@ void FitProfileAlgorithm::fitShapeletTerms(
 ) {
     typedef shapelet::MultiShapeletFunction MSF; 
     MSF msf = model.asMultiShapelet().convolve(psfModel.asMultiShapelet());
+    msf.normalize();
     ndarray::Array<double,1,1> vector = ndarray::allocate(inputs.getSize());
     vector.deep() = 0.0;
     shapelet::ModelBuilder builder(inputs.getX(), inputs.getY());
     for (MSF::ElementList::const_iterator i = msf.getElements().begin(); i != msf.getElements().end(); ++i) {
+        builder.update(i->getEllipse().getCore());
         builder.addModelVector(i->getOrder(), i->getCoefficients(), vector);
     }
     if (!inputs.getWeights().isEmpty()) {
@@ -322,11 +324,11 @@ FitProfileModel FitProfileAlgorithm::apply(
         || (opt.getState() & HybridOptimizer::FAILURE_MINTRUST);
     model.flagMinRadius = constrained.first;
     model.flagMinAxisRatio = constrained.second;
-    if (psfModel.inner.getSize<0>() > 1 || psfModel.outer.getSize<0>() > 1) {
+    //if (psfModel.inner.getSize<0>() > 1 || psfModel.outer.getSize<0>() > 1) {
         fitShapeletTerms(ctrl, psfModel, inputs, model);
-    } else {
-        model.chisq = opt.getChiSq() / (inputs.getSize() - 4);
-    }
+//} else {
+        //      model.chisq = opt.getChiSq() / (inputs.getSize() - 4);
+        //}
     return model;
 }
 
