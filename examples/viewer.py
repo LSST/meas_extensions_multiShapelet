@@ -150,17 +150,28 @@ class FitProfileViewer(ViewerBase):
             if opt.getState() & ms.HybridOptimizer.FINISHED:
                 break
         self.model = self.Model(self.iterations[-1].model)
-        if self.ctrl.usePsfShapeletTerms:
-            self.Algorithm.fitShapeletTerms(self.ctrl, self.psfModel, self.inputs, self.model)
+        self.Algorithm.fitShapeletTerms(self.ctrl, self.psfModel, self.inputs, self.model)
 
 
-    def plot(self, n=-1):
-        iteration = self.iterations[n]
-        model = iteration.model
+    def plot(self, n=None):
+        if n is None:
+            model = self.model
+            optFunc = None
+        else:
+            optFunc = self.iterations[n].func
+            model = self.iterations[n].model
         data = self.image
         fit = lsst.afw.image.ImageD(self.bbox)
-        func = model.asMultiShapelet(self.center).convolve(self.psfModel.asMultiShapelet())
-        func.evaluate().addToImage(fit)
+        msf = model.asMultiShapelet(self.center).convolve(self.psfModel.asMultiShapelet())
+        if optFunc is None:
+            optFunc = numpy.zeros(self.inputs.getSize(), dtype=float)
+            smb = lsst.shapelet.ModelBuilder(self.inputs.getX(), self.inputs.getY())
+            for elem in msf.getElements():
+                smb.update(elem.getEllipse().getCore())
+                smb.addModelVector(elem.getOrder(), elem.getCoefficients(), optFunc)
+            optFunc *= self.inputs.getWeights()
+            optFunc -= self.inputs.getData()
+        msf.evaluate().addToImage(fit)
         residuals = lsst.afw.image.ImageD(data, True)
         residuals -= fit
         ellipses = [
@@ -173,7 +184,7 @@ class FitProfileViewer(ViewerBase):
                                        self.bbox.getBegin())
         wResiduals = lsst.afw.image.ImageD(self.bbox)
         wResiduals.getArray()[:,:] = float("NaN")
-        lsst.afw.detection.expandArray(self.footprint, iteration.func, wResiduals.getArray(),
+        lsst.afw.detection.expandArray(self.footprint, optFunc, wResiduals.getArray(),
                                        self.bbox.getBegin())
         wFit = lsst.afw.image.ImageD(wResiduals, True)
         wFit += wData
