@@ -71,7 +71,7 @@ public:
         profile("tractor-exponential"), psfName("multishapelet.psf"),
         minRadius(0.0001), minAxisRatio(0.0001),
         deconvolveShape(true), minInitialRadius(0.5),
-        usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(0.0),
+        usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0),
         scaleByPsfFit(true)
     {
         badMaskPlanes.push_back("BAD");
@@ -100,11 +100,12 @@ private:
 struct FitProfileModel {
 
     std::string profile; ///< name of profile to look up in MultiGaussianRegistry
-    double flux; ///< total flux of approximate model, integrated to infinity (includes PSF factor, if enabled)
+    double flux; ///< total flux of model, integrated to infinity (includes PSF factor, if enabled)
     double fluxErr; ///< uncertainty on flux
     afw::geom::ellipses::Quadrupole ellipse; ///< half-light radius ellipse
     double chisq; ///< reduced chi^2
-    double psfFactor; ///< flux from profile fit to PSF model; 1 if this is turned off
+    double psfFactor; ///< "flux" from fit to normalized PSF model; 1 if this is turned off
+    bool flagFailed; ///< set to true if the inputs were unusable or an exception was thrown
     bool flagMaxIter; ///< set to true if the optimizer hit the maximum number of iterations
     bool flagTinyStep; ///< set to true if the optimizer step size got too small to make progress
     bool flagMinRadius; ///< set to true if the best-fit radius was at the minimum constraint

@@ -52,39 +52,33 @@ void initCoords(
     }
 }
 
-PTR(afw::detection::Footprint) mergeFootprintWithEllipse(
+PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
     afw::detection::Footprint const & footprint,
-    afw::geom::ellipses::Ellipse const & ellipse
+    std::vector<afw::geom::ellipses::Ellipse> const & ellipses
 ) {
     // TODO: we do a lot of turning footprints into masks here and elsewhere; should really only
     // have to do that once
     afw::geom::Box2I bbox(footprint.getBBox());
-    afw::detection::Footprint ellipseFootprint(ellipse);
-    bbox.include(ellipseFootprint.getBBox());
+    std::vector<PTR(afw::detection::Footprint)> ellipseFootprints(ellipses.size());
+    for (std::size_t n = 0; n < ellipses.size(); ++n) {
+        ellipseFootprints[n] = boost::make_shared<afw::detection::Footprint>(ellipses[n]);
+        bbox.include(ellipseFootprints[n]->getBBox());
+    }
     afw::image::Mask<> mask(bbox);
     afw::detection::setMaskFromFootprint(&mask, footprint, afw::image::MaskPixel(0x1));
-    afw::detection::setMaskFromFootprint(&mask, ellipseFootprint, afw::image::MaskPixel(0x1));
-    afw::detection::FootprintSet fpSet1(
+    for (std::size_t n = 0; n < ellipses.size(); ++n) {
+        afw::detection::setMaskFromFootprint(&mask, *ellipseFootprints[n], afw::image::MaskPixel(0x1));
+    }
+    afw::detection::FootprintSet fpSet(
         mask, afw::detection::Threshold(0x1, afw::detection::Threshold::BITMASK), 1
     );
-#if 0
-    PTR(std::vector<PTR(afw::detection::Footprint)>) fpList1;
-    PTR(std::vector<PTR(afw::detection::Footprint)>) fpList2;
-    fpList1->push_back(boost::make_shared<afw::detection::Footprint>(footprint));
-    fpList2->push_back(boost::make_shared<afw::detection::Footprint>(ellipse));
-    afw::detection::FootprintSet fpSet1(bbox);
-    fpSet1.setFootprints(fpList1);
-    afw::detection::FootprintSet fpSet2(bbox);
-    fpSet2.setFootprints(fpList2);
-    fpSet1.merge(fpSet2, growFootprint, 0, true);
-#endif
-    if (fpSet1.getFootprints()->size() != 1u) {
+    if (fpSet.getFootprints()->size() != 1u) {
         throw LSST_EXCEPT(
             pex::exceptions::InvalidParameterException,
-            "Ellipse-based footprint does not overlap detection footprint."
+            "Ellipse-based footprints do not all overlap detection footprint."
         );
     }
-    return fpSet1.getFootprints()->front();
+    return fpSet.getFootprints()->front();
 }
 
 } // anonymous
@@ -119,7 +113,8 @@ ModelInputHandler::ModelInputHandler(
 
 template <typename PixelT>
 ModelInputHandler::ModelInputHandler(
-    afw::image::Image<PixelT> const & image, afw::geom::ellipses::Ellipse const & ellipse, 
+    afw::image::Image<PixelT> const & image, afw::geom::Point2D const & center,
+    std::vector<afw::geom::ellipses::Ellipse> const & ellipses, 
     afw::detection::Footprint const & region, int growFootprint
 ) {
     if (growFootprint) {
@@ -127,11 +122,11 @@ ModelInputHandler::ModelInputHandler(
     } else {
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    _footprint = mergeFootprintWithEllipse(*_footprint, ellipse);
+    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses);
     _footprint->clipTo(image.getBBox(afw::image::PARENT));
     _data = ndarray::allocate(_footprint->getArea());
     afw::detection::flattenArray(*_footprint, image.getArray(), _data, image.getXY0());
-    initCoords(_x, _y, *_footprint, ellipse.getCenter());
+    initCoords(_x, _y, *_footprint, center);
 }
 
 template <typename PixelT>
@@ -179,7 +174,8 @@ ModelInputHandler::ModelInputHandler(
 
 template <typename PixelT>
 ModelInputHandler::ModelInputHandler(
-    afw::image::MaskedImage<PixelT> const & image, afw::geom::ellipses::Ellipse const & ellipse, 
+    afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center,
+    std::vector<afw::geom::ellipses::Ellipse> const & ellipses,
     afw::detection::Footprint const & region, int growFootprint,
     afw::image::MaskPixel badPixelMask, bool usePixelWeights
 ) {
@@ -188,7 +184,7 @@ ModelInputHandler::ModelInputHandler(
     } else {
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    _footprint = mergeFootprintWithEllipse(*_footprint, ellipse);
+    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses);
     _footprint->intersectMask(*image.getMask(), badPixelMask);
     _data = ndarray::allocate(_footprint->getArea());
     _weights = ndarray::allocate(_footprint->getArea());
@@ -199,7 +195,7 @@ ModelInputHandler::ModelInputHandler(
     }
     _weights.asEigen<Eigen::ArrayXpr>() = _weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse();
     _data.asEigen<Eigen::ArrayXpr>() *= _weights.asEigen<Eigen::ArrayXpr>();
-    initCoords(_x, _y, *_footprint, ellipse.getCenter());
+    initCoords(_x, _y, *_footprint, center);
 }
 
 #define INSTANTIATE(T)                          \
@@ -210,7 +206,8 @@ ModelInputHandler::ModelInputHandler(
         afw::image::Image<T> const & image, afw::geom::Point2D const & center, \
         afw::detection::Footprint const & region, int growFootprint);   \
     template ModelInputHandler::ModelInputHandler(                      \
-        afw::image::Image<T> const & image, afw::geom::ellipses::Ellipse const & ellipse, \
+        afw::image::Image<T> const & image, afw::geom::Point2D const & center, \
+        std::vector<afw::geom::ellipses::Ellipse> const & ellipses,     \
         afw::detection::Footprint const & region, int growFootprint);   \
     template ModelInputHandler::ModelInputHandler(                      \
         afw::image::MaskedImage<T> const & image, afw::geom::Point2D const & center, \
@@ -220,8 +217,9 @@ ModelInputHandler::ModelInputHandler(
         afw::detection::Footprint const & region, int growFootprint,  \
         afw::image::MaskPixel badPixelMask, bool usePixelWeights);      \
     template ModelInputHandler::ModelInputHandler(                      \
-        afw::image::MaskedImage<T> const & image, afw::geom::ellipses::Ellipse const & ellipse, \
-        afw::detection::Footprint const & region, int growFootprint,  \
+        afw::image::MaskedImage<T> const & image, afw::geom::Point2D const & center,\
+        std::vector<afw::geom::ellipses::Ellipse> const & ellipses,     \
+        afw::detection::Footprint const & region, int growFootprint,    \
         afw::image::MaskPixel badPixelMask, bool usePixelWeights)
 
 INSTANTIATE(float);

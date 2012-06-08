@@ -54,7 +54,7 @@ FitProfileModel::FitProfileModel(
 ) :
     profile(ctrl.profile), flux(amplitude), fluxErr(0.0),
     ellipse(MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2])),
-    chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0),
+    chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0), flagFailed(false),
     flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false)
 {}
 
@@ -62,12 +62,13 @@ FitProfileModel::FitProfileModel(
     FitProfileControl const & ctrl, afw::table::SourceRecord const & source
 ) :
     profile(ctrl.profile), flux(1.0), fluxErr(0.0), ellipse(),
-    chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0),
+    chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0), flagFailed(false),
     flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
     flux = source.get(s.find< double >("flux").key);
     fluxErr = source.get(s.find< double >("flux.err").key);
+    flagFailed = source.get(s.find<afw::table::Flag>("flux.flags").key);
     ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
     chisq = source.get(s.find<float>("chisq").key);
     flagMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
@@ -85,6 +86,7 @@ FitProfileModel::FitProfileModel(
 FitProfileModel::FitProfileModel(FitProfileModel const & other) :
     profile(other.profile), flux(other.flux), fluxErr(other.fluxErr), ellipse(other.ellipse),
     chisq(other.chisq), psfFactor(other.psfFactor),
+    flagFailed(other.flagFailed),
     flagMaxIter(other.flagMaxIter),
     flagTinyStep(other.flagTinyStep),
     flagMinRadius(other.flagMinRadius),
@@ -103,6 +105,7 @@ FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
         ellipse = other.ellipse;
         chisq = other.chisq;
         psfFactor = other.psfFactor;
+        flagFailed = other.flagFailed;
         flagMaxIter = other.flagMaxIter;
         flagTinyStep = other.flagTinyStep;
         flagMinRadius = other.flagMinRadius;
@@ -261,9 +264,11 @@ ModelInputHandler FitProfileAlgorithm::adjustInputs(
     shape = ellipse;
     afw::image::MaskPixel badPixelMask = afw::image::Mask<>::getPlaneBitMask(ctrl.badMaskPlanes);
     if (ctrl.radiusInputFactor > 0.0) {
-        afw::geom::ellipses::Ellipse boundsEllipse(shape, center);
-        boundsEllipse.getCore().scale(ctrl.radiusInputFactor);
-        return ModelInputHandler(image.getMaskedImage(), boundsEllipse, footprint, ctrl.growFootprint, 
+        std::vector<afw::geom::ellipses::Ellipse> boundsEllipses;
+        boundsEllipses.push_back(afw::geom::ellipses::Ellipse(shape, center));
+        boundsEllipses.back().getCore().scale(ctrl.radiusInputFactor);
+        return ModelInputHandler(image.getMaskedImage(), center,
+                                 boundsEllipses, footprint, ctrl.growFootprint, 
                                  badPixelMask, ctrl.usePixelWeights);
     } else {
         return ModelInputHandler(image.getMaskedImage(), center, footprint, ctrl.growFootprint, 
@@ -381,7 +386,7 @@ void FitProfileAlgorithm::_apply(
     );
     source.set(_fluxKeys.meas, model.flux);
     source.set(_fluxKeys.err, model.fluxErr);
-    source.set(_fluxKeys.flag, false);
+    source.set(_fluxKeys.flag, model.flagFailed);
     source.set(_ellipseKey, model.ellipse);
     if (getControl().scaleByPsfFit) {
         source.set(_psfEllipseKey, *model.psfEllipse);
