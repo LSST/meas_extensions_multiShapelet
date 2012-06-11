@@ -21,11 +21,13 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
+#include "lsst/utils/ieee.h"
 #include "lsst/meas/extensions/multiShapelet/FitCombo.h"
 #include "lsst/shapelet/ModelBuilder.h"
 #include "lsst/afw/math/LeastSquares.h"
 #include "lsst/afw/detection/FootprintArray.h"
 #include "lsst/afw/detection/FootprintArray.cc"
+
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
@@ -123,14 +125,14 @@ FitComboAlgorithm::FitComboAlgorithm(
             throw LSST_EXCEPT(
                 pex::exceptions::LogicErrorException,
                 (boost::format("FitProfile with name '%s' not found; needed by FitCombo.")
-                 % ctrl.psfName).str()
+                 % (*nameIter)).str()
             );
         }
         _componentCtrl.push_back(boost::dynamic_pointer_cast<FitProfileControl const>(i->second));
         if (!_componentCtrl.back()) {
             throw LSST_EXCEPT(
                 pex::exceptions::LogicErrorException,
-                (boost::format("Algorithm with name '%s' is not FitProfile.") % ctrl.psfName).str()
+                (boost::format("Algorithm with name '%s' is not FitProfile.") % (*nameIter)).str()
             );
         }
     }
@@ -145,7 +147,8 @@ ModelInputHandler FitComboAlgorithm::adjustInputs(
     afw::image::Exposure<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
-    afw::image::MaskPixel badPixelMask = afw::image::Mask<>::getPlaneBitMask(ctrl.badMaskPlanes);
+    afw::image::MaskPixel badPixelMask(0);
+        badPixelMask = afw::image::Mask<>::getPlaneBitMask(ctrl.badMaskPlanes);
     if (ctrl.radiusInputFactor > 0.0) {
         std::vector<afw::geom::ellipses::Ellipse> boundsEllipses;
         for (std::size_t n = 0; n < components.size(); ++n) {
@@ -169,9 +172,38 @@ FitComboModel FitComboAlgorithm::apply(
     bool usePsfEllipses
 ) {
     FitComboModel model(ctrl);
-    
-    // TODO
-
+    typedef shapelet::MultiShapeletFunction MSF;
+    shapelet::ModelBuilder builder(inputs.getX(), inputs.getY());
+    ndarray::Array<double,2,2> matrixT = ndarray::allocate(components.size(), inputs.getSize());
+    ndarray::Array<double,2,-2> matrix(matrixT.transpose());
+    matrixT.deep() = 0.0;
+    for (int n = 0; n < matrixT.getSize<0>(); ++n) {
+        MSF msf = components[n].asMultiShapelet().convolve(psfModel.asMultiShapelet());
+        msf.normalize();
+        for (
+            MSF::ElementList::const_iterator i = msf.getElements().begin();
+            i != msf.getElements().end();
+            ++i
+        ) {
+            builder.update(i->getEllipse().getCore());
+            builder.addModelVector(i->getOrder(), i->getCoefficients(), matrixT[n]);
+        }
+        if (!inputs.getWeights().isEmpty()) {
+            matrixT[n].asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
+        }
+    }
+    afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
+    model.flux = lstsq.getSolution().asEigen().sum();
+    model.fluxErr = std::sqrt(
+        lstsq.getSolution().asEigen().dot(
+            lstsq.getCovariance().asEigen() * lstsq.getSolution().asEigen()
+        )
+    );
+    model.components.deep() = lstsq.getSolution();
+    model.components.asEigen() /= model.flux;
+    model.chisq =
+        (matrix.asEigen() * lstsq.getSolution().asEigen() - inputs.getData().asEigen()).squaredNorm()
+        / (matrix.getSize<0>() - matrix.getSize<1>());
     return model;
 }
 
@@ -223,6 +255,7 @@ void FitComboAlgorithm::_apply(
             return; // Don't bother trying linear components if one of the inputs failed.
                     // This saves us from slowdown caused by bogus huge initial ellipses/
         }
+        assert(lsst::utils::isfinite(components.back().ellipse.getArea()));
     }
     FitComboModel model = apply(
         getControl(), psfModel, components,

@@ -23,6 +23,7 @@ class FitDeVaucouleurConfig(FitProfileConfig):
 lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.psf", FitPsfControl)
 lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.exp", FitProfileControl, FitExponentialConfig)
 lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.dev", FitProfileControl, FitDeVaucouleurConfig)
+lsst.meas.algorithms.AlgorithmRegistry.register("multishapelet.combo", FitComboControl)
 
 def loadProfiles():
     import os

@@ -264,7 +264,6 @@ void FitPsfAlgorithm::fitShapeletTerms(
             *= (inputs.getWeights().asEigen() * Eigen::RowVectorXd::Ones(matrix.getSize<1>())).array();
     }
     afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
-    // areaFactor term corrects for the difference between ShapeletFunction and ModelBuilder conventions.
     model.inner.deep() = lstsq.getSolution()[ndarray::view(0, innerCoeffs)];
     model.outer.deep() = lstsq.getSolution()[ndarray::view(innerCoeffs, innerCoeffs + outerCoeffs)];
     // The degrees of freedom corresponds to the final shapelet fit with ellipse held fixed.

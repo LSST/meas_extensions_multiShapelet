@@ -32,5 +32,6 @@
 
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
 #include "lsst/meas/extensions/multiShapelet/FitProfile.h"
+#include "lsst/meas/extensions/multiShapelet/FitCombo.h"
 
 #endif // !MULTISHAPELET_multiShapelet_h_INCLUDED
