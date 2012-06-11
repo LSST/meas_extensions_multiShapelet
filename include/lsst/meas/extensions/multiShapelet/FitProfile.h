@@ -110,6 +110,8 @@ struct FitProfileModel {
     bool flagTinyStep; ///< set to true if the optimizer step size got too small to make progress
     bool flagMinRadius; ///< set to true if the best-fit radius was at the minimum constraint
     bool flagMinAxisRatio; ///< set to true if the best-fit axis ratio was at the minimum constraint
+    bool flagLargeArea; ///< set to true if the area inside the best-fit half-light ellipse was larger
+                        ///< than the number of pixels used
     PTR(afw::geom::ellipses::Quadrupole) psfEllipse; //< from profile fit to PSF model
 
     FitProfileModel(
@@ -263,14 +265,15 @@ private:
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitProfileAlgorithm);
 
     afw::table::KeyTuple< afw::table::Flux > _fluxKeys;
-    afw::table::Key< afw::table::Moments<float> > _ellipseKey;
-    afw::table::Key< afw::table::Moments<float> > _psfEllipseKey;
+    afw::table::Key< afw::table::Moments<double> > _ellipseKey;
+    afw::table::Key< afw::table::Moments<double> > _psfEllipseKey;
     afw::table::Key< float > _chisqKey;
     afw::table::Key< float > _psfFactorKey;
     afw::table::Key< afw::table::Flag > _flagMaxIterKey;
     afw::table::Key< afw::table::Flag > _flagTinyStepKey;
     afw::table::Key< afw::table::Flag > _flagMinRadiusKey;
     afw::table::Key< afw::table::Flag > _flagMinAxisRatioKey;
+    afw::table::Key< afw::table::Flag > _flagLargeAreaKey;
     CONST_PTR(FitPsfControl) _psfCtrl;
 };
 

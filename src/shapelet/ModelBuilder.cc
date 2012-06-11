@@ -55,7 +55,9 @@ ModelBuilder::ModelBuilder(
 ) : _wsOrder(-1), _ellipseFactor(1.0),
     _x(x), _y(y),
     _xt(_x.size()), _yt(_y.size())
-{}
+{
+    assert(_x.size() == _y.size());
+}
 
 void ModelBuilder::update(afw::geom::ellipses::BaseCore const & ellipse) {
     typedef afw::geom::LinearTransform LT;

@@ -65,8 +65,10 @@ PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
         bbox.include(ellipseFootprints[n]->getBBox());
     }
     afw::image::Mask<> mask(bbox);
+    assert(mask.getBBox(afw::image::PARENT).contains(footprint.getBBox()));
     afw::detection::setMaskFromFootprint(&mask, footprint, afw::image::MaskPixel(0x1));
     for (std::size_t n = 0; n < ellipses.size(); ++n) {
+        assert(mask.getBBox(afw::image::PARENT).contains(ellipseFootprints[n]->getBBox()));
         afw::detection::setMaskFromFootprint(&mask, *ellipseFootprints[n], afw::image::MaskPixel(0x1));
     }
     afw::detection::FootprintSet fpSet(

@@ -21,6 +21,7 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
+#include "lsst/utils/ieee.h"
 #include "lsst/meas/extensions/multiShapelet/FitProfile.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
@@ -55,7 +56,8 @@ FitProfileModel::FitProfileModel(
     profile(ctrl.profile), flux(amplitude), fluxErr(0.0),
     ellipse(MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2])),
     chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0), flagFailed(false),
-    flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false)
+    flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false),
+    flagLargeArea(false)
 {}
 
 FitProfileModel::FitProfileModel(
@@ -63,21 +65,24 @@ FitProfileModel::FitProfileModel(
 ) :
     profile(ctrl.profile), flux(1.0), fluxErr(0.0), ellipse(),
     chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0), flagFailed(false),
-    flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false)
+    flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false),
+    flagLargeArea(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
     flux = source.get(s.find< double >("flux").key);
     fluxErr = source.get(s.find< double >("flux.err").key);
     flagFailed = source.get(s.find<afw::table::Flag>("flux.flags").key);
-    ellipse = source.get(s.find< afw::table::Moments<float> >("ellipse").key);
+    ellipse = source.get(s.find< afw::table::Moments<double> >("ellipse").key);
+    assert(flagFailed || lsst::utils::isfinite(ellipse.getArea()));
     chisq = source.get(s.find<float>("chisq").key);
     flagMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
     flagTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
+    flagLargeArea = source.get(s.find<afw::table::Flag>("flags.largearea").key);
     if (ctrl.scaleByPsfFit) {
         try {
             psfFactor = source.get(s.find<float>("psf.factor").key);
             psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(
-                source.get(s.find< afw::table::Moments<float> >("psf.ellipse").key)
+                source.get(s.find< afw::table::Moments<double> >("psf.ellipse").key)
             );
         } catch (pex::exceptions::NotFoundException &) {}
     }
@@ -90,7 +95,8 @@ FitProfileModel::FitProfileModel(FitProfileModel const & other) :
     flagMaxIter(other.flagMaxIter),
     flagTinyStep(other.flagTinyStep),
     flagMinRadius(other.flagMinRadius),
-    flagMinAxisRatio(other.flagMinAxisRatio)
+    flagMinAxisRatio(other.flagMinAxisRatio),
+    flagLargeArea(other.flagLargeArea)
 {
     if (other.psfEllipse) {
         psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(*other.psfEllipse);
@@ -110,6 +116,7 @@ FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
         flagTinyStep = other.flagTinyStep;
         flagMinRadius = other.flagMinRadius;
         flagMinAxisRatio = other.flagMinAxisRatio;
+        flagLargeArea = other.flagLargeArea;
         if (other.psfEllipse) {
             psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(*other.psfEllipse);
         } else {
@@ -147,7 +154,7 @@ FitProfileAlgorithm::FitProfileAlgorithm(
         )
     ),
     _ellipseKey(
-        schema.addField< afw::table::Moments<float> >(
+        schema.addField< afw::table::Moments<double> >(
             ctrl.name + ".ellipse",
             "half-light radius ellipse"
         )),
@@ -176,10 +183,16 @@ FitProfileAlgorithm::FitProfileAlgorithm(
             ctrl.name + ".flags.constraint.q",
             "set if the best-fit ellipticity was the maximum allowed by the constraint"
         )),
+    _flagLargeAreaKey(
+        schema.addField<afw::table::Flag>(
+            ctrl.name + ".flags.largearea",
+            "set if the best-fit half-light ellipse area is larger than the number of pixels used"
+
+        )),
     _psfCtrl()
 {
     if (ctrl.scaleByPsfFit) {
-        _psfEllipseKey = schema.addField< afw::table::Moments<float> >(
+        _psfEllipseKey = schema.addField< afw::table::Moments<double> >(
             ctrl.name + ".psf.ellipse",
             "ellipse from fitting the profile model to the PSF model"
         );
@@ -324,11 +337,8 @@ FitProfileModel FitProfileAlgorithm::apply(
         || (opt.getState() & HybridOptimizer::FAILURE_MINTRUST);
     model.flagMinRadius = constrained.first;
     model.flagMinAxisRatio = constrained.second;
-    //if (psfModel.inner.getSize<0>() > 1 || psfModel.outer.getSize<0>() > 1) {
-        fitShapeletTerms(ctrl, psfModel, inputs, model);
-//} else {
-        //      model.chisq = opt.getChiSq() / (inputs.getSize() - 4);
-        //}
+    model.flagFailed = model.flagLargeArea = !(model.ellipse.getArea() < inputs.getSize());
+    fitShapeletTerms(ctrl, psfModel, inputs, model);
     return model;
 }
 
@@ -386,6 +396,7 @@ void FitProfileAlgorithm::_apply(
         shape, *source.getFootprint(),
         exposure, center
     );
+    assert(model.flagFailed || lsst::utils::isfinite(model.ellipse.getArea()));
     source.set(_fluxKeys.meas, model.flux);
     source.set(_fluxKeys.err, model.fluxErr);
     source.set(_fluxKeys.flag, model.flagFailed);
@@ -399,6 +410,7 @@ void FitProfileAlgorithm::_apply(
     source.set(_flagTinyStepKey, model.flagTinyStep);
     source.set(_flagMinRadiusKey, model.flagMinRadius);
     source.set(_flagMinAxisRatioKey, model.flagMinAxisRatio);
+    source.set(_flagLargeAreaKey, model.flagLargeArea);
 }
 
 
