@@ -62,8 +62,8 @@ public:
         usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0),
         scaleByPsfFit(true)
     {
-        componentNames.push_back("exp");
-        componentNames.push_back("dev");
+        componentNames.push_back("multishapelet.exp");
+        componentNames.push_back("multishapelet.dev");
         badMaskPlanes.push_back("BAD");
         badMaskPlanes.push_back("SAT");
         badMaskPlanes.push_back("INTRP");
