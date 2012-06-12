@@ -127,14 +127,17 @@ FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
 }
 
 shapelet::MultiShapeletFunction FitProfileModel::asMultiShapelet(
-    afw::geom::Point2D const & center
+    afw::geom::Point2D const & center,
+    bool usePsfValues
 ) const {
     shapelet::MultiShapeletFunction::ElementList elements;
     MultiGaussian const & multiGaussian = MultiGaussianRegistry::lookup(profile);
+    afw::geom::ellipses::Quadrupole const & q = usePsfValues ? (*psfEllipse) : ellipse;
+    double amplitude = usePsfValues ? psfFactor : flux;
     for (MultiGaussian::const_iterator i = multiGaussian.begin(); i != multiGaussian.end(); ++i) {
-        afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
+        afw::geom::ellipses::Ellipse fullEllipse(q, center);
         elements.push_back(i->makeShapelet(fullEllipse));
-        elements.back().getCoefficients().asEigen() *= flux;
+        elements.back().getCoefficients().asEigen() *= amplitude;
     }
     return shapelet::MultiShapeletFunction(elements);
 }

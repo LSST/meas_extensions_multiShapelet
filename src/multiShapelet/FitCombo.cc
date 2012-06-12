@@ -169,8 +169,13 @@ FitComboModel FitComboAlgorithm::apply(
     FitPsfModel const & psfModel,
     std::vector<FitProfileModel> const & components,
     ModelInputHandler const & inputs,
-    bool usePsfEllipses
+    bool fitPsf
 ) {
+    if (components.size() != 2u) {
+        throw LSST_EXCEPT(
+            pex::exceptions::LogicErrorException, "Only 2-component combo model is current implemented"
+        );
+    }
     FitComboModel model(ctrl);
     typedef shapelet::MultiShapeletFunction MSF;
     shapelet::ModelBuilder builder(inputs.getX(), inputs.getY());
@@ -178,7 +183,8 @@ FitComboModel FitComboAlgorithm::apply(
     ndarray::Array<double,2,-2> matrix(matrixT.transpose());
     matrixT.deep() = 0.0;
     for (int n = 0; n < matrixT.getSize<0>(); ++n) {
-        MSF msf = components[n].asMultiShapelet().convolve(psfModel.asMultiShapelet());
+        MSF msf = components[n].asMultiShapelet(afw::geom::Point2D(), fitPsf)
+            .convolve(psfModel.asMultiShapelet());
         msf.normalize();
         for (
             MSF::ElementList::const_iterator i = msf.getElements().begin();
@@ -193,14 +199,39 @@ FitComboModel FitComboAlgorithm::apply(
         }
     }
     afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
-    model.flux = lstsq.getSolution().asEigen().sum();
-    model.fluxErr = std::sqrt(
-        lstsq.getSolution().asEigen().dot(
-            lstsq.getCovariance().asEigen() * lstsq.getSolution().asEigen()
-        )
-    );
-    model.components.deep() = lstsq.getSolution();
-    model.components.asEigen() /= model.flux;
+    if (lstsq.getSolution()[0] < 0.0) {
+        if (lstsq.getSolution()[1] < 0.0) {
+            throw LSST_EXCEPT(pex::exceptions::RuntimeErrorException, "measured negative flux");
+        }
+        model.components[0] = 0.0;
+        model.components[1] = 1.0;
+        if (fitPsf) {
+            model.flux = components[1].psfFactor;
+        } else {
+            // remove PSF fit correction from single-profile result
+            model.flux = components[1].flux * components[1].psfFactor;
+            model.fluxErr = components[1].fluxErr * components[1].psfFactor;
+        }
+    } else if (lstsq.getSolution()[1] < 0.0) {
+        model.components[0] = 1.0;
+        model.components[1] = 0.0;
+        if (fitPsf) {
+            model.flux = components[0].psfFactor;
+        } else {
+            // remove PSF fit correction from single-profile result
+            model.flux = components[0].flux * components[0].psfFactor;
+            model.fluxErr = components[0].fluxErr * components[0].psfFactor;
+        }
+    } else {
+        model.flux = lstsq.getSolution().asEigen().sum();
+        model.fluxErr = std::sqrt(
+            lstsq.getSolution().asEigen().dot(
+                lstsq.getCovariance().asEigen() * lstsq.getSolution().asEigen()
+            )
+        );
+        model.components.deep() = lstsq.getSolution();
+        model.components.asEigen() /= model.flux;
+    }
     model.chisq =
         (matrix.asEigen() * lstsq.getSolution().asEigen() - inputs.getData().asEigen()).squaredNorm()
         / (matrix.getSize<0>() - matrix.getSize<1>());

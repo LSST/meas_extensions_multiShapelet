@@ -135,7 +135,8 @@ struct FitProfileModel {
      *  @brief Return a MultiShapeletFunction representation of the model (unconvolved).
      */
     shapelet::MultiShapeletFunction asMultiShapelet(
-        afw::geom::Point2D const & center = afw::geom::Point2D()
+        afw::geom::Point2D const & center = afw::geom::Point2D(),
+        bool usePsfValues = false
     ) const;
 
 };
