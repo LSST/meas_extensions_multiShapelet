@@ -46,8 +46,6 @@ import lsst.meas.extensions.multiShapelet as ms
 numpy.random.seed(5)
 numpy.set_printoptions(linewidth=120)
 
-from matplotlib import pyplot
-
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
 class FitProfileTestMixin(object):
