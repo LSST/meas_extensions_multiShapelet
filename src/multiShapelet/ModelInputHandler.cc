@@ -92,6 +92,12 @@ ModelInputHandler::ModelInputHandler(
 ) {
     _footprint = boost::make_shared<afw::detection::Footprint>(region);
     _footprint->clipTo(image.getBBox(afw::image::PARENT));
+    if (_footprint->getArea() <= 0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Model fit contains no usable pixels."
+        );
+    }
     _data = ndarray::allocate(_footprint->getArea());
     afw::detection::flattenArray(*_footprint, image.getArray(), _data, image.getXY0());
     initCoords(_x, _y, *_footprint, center);
@@ -108,6 +114,12 @@ ModelInputHandler::ModelInputHandler(
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
     _footprint->clipTo(image.getBBox(afw::image::PARENT));
+    if (_footprint->getArea() <= 0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Model fit contains no usable pixels."
+        );
+    }
     _data = ndarray::allocate(_footprint->getArea());
     afw::detection::flattenArray(*_footprint, image.getArray(), _data, image.getXY0());
     initCoords(_x, _y, *_footprint, center);
@@ -126,6 +138,12 @@ ModelInputHandler::ModelInputHandler(
     }
     _footprint = mergeFootprintWithEllipses(*_footprint, ellipses);
     _footprint->clipTo(image.getBBox(afw::image::PARENT));
+    if (_footprint->getArea() <= 0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Model fit contains no usable pixels."
+        );
+    }
     _data = ndarray::allocate(_footprint->getArea());
     afw::detection::flattenArray(*_footprint, image.getArray(), _data, image.getXY0());
     initCoords(_x, _y, *_footprint, center);
@@ -138,6 +156,12 @@ ModelInputHandler::ModelInputHandler(
 ) {
     _footprint = boost::make_shared<afw::detection::Footprint>(region);
     _footprint->intersectMask(*image.getMask(), badPixelMask);
+    if (_footprint->getArea() <= 0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Model fit contains no usable pixels."
+        );
+    }
     _data = ndarray::allocate(_footprint->getArea());
     _weights = ndarray::allocate(_footprint->getArea());
     afw::detection::flattenArray(*_footprint, image.getImage()->getArray(), _data, image.getXY0());
@@ -162,6 +186,12 @@ ModelInputHandler::ModelInputHandler(
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
     _footprint->intersectMask(*image.getMask(), badPixelMask);
+    if (_footprint->getArea() <= 0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Model fit contains no usable pixels."
+        );
+    }
     _data = ndarray::allocate(_footprint->getArea());
     _weights = ndarray::allocate(_footprint->getArea());
     afw::detection::flattenArray(*_footprint, image.getImage()->getArray(), _data, image.getXY0());
@@ -188,6 +218,12 @@ ModelInputHandler::ModelInputHandler(
     }
     _footprint = mergeFootprintWithEllipses(*_footprint, ellipses);
     _footprint->intersectMask(*image.getMask(), badPixelMask);
+    if (_footprint->getArea() <= 0) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Model fit contains no usable pixels."
+        );
+    }
     _data = ndarray::allocate(_footprint->getArea());
     _weights = ndarray::allocate(_footprint->getArea());
     afw::detection::flattenArray(*_footprint, image.getImage()->getArray(), _data, image.getXY0());
