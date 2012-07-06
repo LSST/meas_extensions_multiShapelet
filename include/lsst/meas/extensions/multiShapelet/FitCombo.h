@@ -42,9 +42,6 @@ public:
     LSST_CONTROL_FIELD(growFootprint, int, "Number of pixels to grow the footprint by.");
     LSST_CONTROL_FIELD(radiusInputFactor, double,
                        "Number of half-light radii used to determine the pixels to fit");
-    LSST_CONTROL_FIELD(scaleByPsfFit, bool,
-                       "If true, fit the PSF with the same model and divide the galaxy flux "
-                       "by the PSF flux.");
 
     PTR(FitComboControl) clone() const {
         return boost::static_pointer_cast<FitComboControl>(_clone());
@@ -59,8 +56,7 @@ public:
     FitComboControl() :
         algorithms::AlgorithmControl("multishapelet.combo", 2.6),
         componentNames(), psfName("multishapelet.psf"),
-        usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0),
-        scaleByPsfFit(true)
+        usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0)
     {
         componentNames.push_back("multishapelet.exp");
         componentNames.push_back("multishapelet.dev");
@@ -88,7 +84,6 @@ struct FitComboModel {
     double flux; ///< total flux of model, integrated to infinity (includes PSF factor, if enabled)
     double fluxErr; ///< uncertainty on flux
     double chisq; ///< reduced chi^2
-    double psfFactor; ///< "flux" from fit to normalized PSF model; 1 if this is turned off
 
     explicit FitComboModel(FitComboControl const & ctrl);
 
@@ -100,7 +95,12 @@ struct FitComboModel {
 
 };
 
-class FitComboAlgorithm : public algorithms::Algorithm {
+class FitComboAlgorithm :
+        public algorithms::Algorithm 
+#ifndef SWIG
+        , public algorithms::ScaledFlux
+#endif
+{
 public:
 
     typedef FitComboControl Control;
@@ -118,13 +118,18 @@ public:
         return static_cast<FitComboControl const &>(algorithms::Algorithm::getControl());
     }
 
+#ifndef SWIG
+    virtual afw::table::KeyTuple<afw::table::Flux> getFluxKeys(int n=0) const { return _fluxKeys; }
+    virtual ScaledFlux::KeyTuple getFluxCorrectionKeys(int n=0) const { return _fluxCorrectionKeys; }
+#endif
+
     template <typename PixelT>
     static ModelInputHandler adjustInputs(
         FitComboControl const & ctrl,
         FitPsfModel const & psfModel,
         std::vector<FitProfileModel> const & components,
         afw::detection::Footprint const & footprint,
-        afw::image::Exposure<PixelT> const & image,
+        afw::image::MaskedImage<PixelT> const & image,
         afw::geom::Point2D const & center
     );
 
@@ -132,30 +137,7 @@ public:
         FitComboControl const & ctrl,
         FitPsfModel const & psfModel,
         std::vector<FitProfileModel> const & components,
-        ModelInputHandler const & inputs,
-        bool usePsfEllipses = false
-    );
-
-    /**
-     *  @brief Fit to a local PSF or kernel image.
-     *
-     *  @param[in]     ctrl           Details of the model to fit.
-     *  @param[in]     components     Results of individual-component fits.
-     *  @param[in]     psfModel       Localized double-shapelet PSF model.
-     *  @param[in]     footprint      Region of the image to fit (after modification according to
-     *                                ctrl parameters).
-     *  @param[in]     image          Full masked image to fit.
-     *  @param[in]     center         Center of the object in the image's PARENT coordinate system
-     *                                (i.e. xy0 is used).
-     */
-    template <typename PixelT>
-    static FitComboModel apply(
-        FitComboControl const & ctrl,
-        FitPsfModel const & psfModel,
-        std::vector<FitProfileModel> const & components,
-        afw::detection::Footprint const & footprint,
-        afw::image::Exposure<PixelT> const & image,
-        afw::geom::Point2D const & center
+        ModelInputHandler const & inputs
     );
 
 private:
@@ -170,9 +152,9 @@ private:
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitComboAlgorithm);
 
     afw::table::KeyTuple< afw::table::Flux > _fluxKeys;
+    algorithms::ScaledFlux::KeyTuple _fluxCorrectionKeys;
     afw::table::Key< afw::table::Array<float> > _componentsKey;
     afw::table::Key< float > _chisqKey;
-    afw::table::Key< float > _psfFactorKey;
     std::vector<CONST_PTR(FitProfileControl)> _componentCtrl;
     CONST_PTR(FitPsfControl) _psfCtrl;
 };
