@@ -50,12 +50,12 @@ PTR(algorithms::Algorithm) FitComboControl::_makeAlgorithm(
 FitComboModel::FitComboModel(FitComboControl const & ctrl) :
     components(ndarray::allocate(ctrl.componentNames.size())),
     flux(std::numeric_limits<double>::quiet_NaN()), fluxErr(std::numeric_limits<double>::quiet_NaN()),
-    chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0)
+    chisq(std::numeric_limits<double>::quiet_NaN())
 {}
 
 FitComboModel::FitComboModel(FitComboModel const & other) :
     components(ndarray::copy(other.components)), flux(other.flux), fluxErr(other.fluxErr),
-    chisq(other.chisq), psfFactor(other.psfFactor)
+    chisq(other.chisq)
 {}
 
 FitComboModel & FitComboModel::operator=(FitComboModel const & other) {
@@ -64,7 +64,6 @@ FitComboModel & FitComboModel::operator=(FitComboModel const & other) {
         flux = other.flux;
         fluxErr = other.fluxErr;
         chisq = other.chisq;
-        psfFactor = other.psfFactor;
     }
     return *this;
 }
@@ -83,6 +82,7 @@ FitComboAlgorithm::FitComboAlgorithm(
             "combined flux of the linear combination of fixed-profile models"
         )
     ),
+    _fluxCorrectionKeys(ctrl.name, schema),
     _componentsKey(
         schema.addField< afw::table::Array<float> >(
             ctrl.name + ".components",
@@ -95,12 +95,6 @@ FitComboAlgorithm::FitComboAlgorithm(
             "reduced chi^2"
         ))
 {
-    if (ctrl.scaleByPsfFit) {
-        _psfFactorKey = schema.addField<float>(
-            ctrl.name + ".psf.factor",
-            "PSF flux correction factor; multiply flux by this get uncorrected value"
-        );  
-    }
     algorithms::AlgorithmControlMap::const_iterator i = others.find(ctrl.psfName);
     if (i == others.end()) {
         throw LSST_EXCEPT(
@@ -144,7 +138,7 @@ ModelInputHandler FitComboAlgorithm::adjustInputs(
     FitPsfModel const & psfModel,
     std::vector<FitProfileModel> const & components,
     afw::detection::Footprint const & footprint,
-    afw::image::Exposure<PixelT> const & image,
+    afw::image::MaskedImage<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
     afw::image::MaskPixel badPixelMask(0);
@@ -155,11 +149,11 @@ ModelInputHandler FitComboAlgorithm::adjustInputs(
             boundsEllipses.push_back(afw::geom::ellipses::Ellipse(components[n].ellipse, center));
             boundsEllipses.back().getCore().scale(ctrl.radiusInputFactor);
         }
-        return ModelInputHandler(image.getMaskedImage(), center,
+        return ModelInputHandler(image, center,
                                  boundsEllipses, footprint, ctrl.growFootprint, 
                                  badPixelMask, ctrl.usePixelWeights);
     } else {
-        return ModelInputHandler(image.getMaskedImage(), center, footprint, ctrl.growFootprint, 
+        return ModelInputHandler(image, center, footprint, ctrl.growFootprint, 
                                  badPixelMask, ctrl.usePixelWeights);
     }
 }
@@ -168,8 +162,7 @@ FitComboModel FitComboAlgorithm::apply(
     FitComboControl const & ctrl,
     FitPsfModel const & psfModel,
     std::vector<FitProfileModel> const & components,
-    ModelInputHandler const & inputs,
-    bool fitPsf
+    ModelInputHandler const & inputs
 ) {
     if (components.size() != 2u) {
         throw LSST_EXCEPT(
@@ -183,7 +176,7 @@ FitComboModel FitComboAlgorithm::apply(
     ndarray::Array<double,2,-2> matrix(matrixT.transpose());
     matrixT.deep() = 0.0;
     for (int n = 0; n < matrixT.getSize<0>(); ++n) {
-        MSF msf = components[n].asMultiShapelet(afw::geom::Point2D(), fitPsf)
+        MSF msf = components[n].asMultiShapelet(afw::geom::Point2D())
             .convolve(psfModel.asMultiShapelet());
         msf.normalize();
         for (
@@ -198,6 +191,8 @@ FitComboModel FitComboAlgorithm::apply(
             matrixT[n].asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
         }
     }
+    // We should really do constrained linear least squares to get the errors right, but this
+    // produces the same result for the fluxes, and we don't have a constrained solver handy.
     afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
     if (lstsq.getSolution()[0] < 0.0) {
         if (lstsq.getSolution()[1] < 0.0) {
@@ -205,63 +200,31 @@ FitComboModel FitComboAlgorithm::apply(
         }
         model.components[0] = 0.0;
         model.components[1] = 1.0;
-        if (fitPsf) {
-            model.flux = components[1].psfFactor;
-        } else {
-            // remove PSF fit correction from single-profile result
-            model.flux = components[1].flux * components[1].psfFactor;
-            model.fluxErr = components[1].fluxErr * components[1].psfFactor;
-        }
+        model.flux = components[1].flux;
+        model.fluxErr = components[1].fluxErr;
     } else if (lstsq.getSolution()[1] < 0.0) {
         model.components[0] = 1.0;
         model.components[1] = 0.0;
-        if (fitPsf) {
-            model.flux = components[0].psfFactor;
-        } else {
-            // remove PSF fit correction from single-profile result
-            model.flux = components[0].flux * components[0].psfFactor;
-            model.fluxErr = components[0].fluxErr * components[0].psfFactor;
-        }
+        model.flux = components[0].flux;
+        model.fluxErr = components[0].fluxErr;
     } else {
         model.flux = lstsq.getSolution().asEigen().sum();
+        model.components.deep() = lstsq.getSolution();
+        model.components.asEigen() /= model.flux;
+#if 0 // don't know why this doesn't work; numbers are way too big
         model.fluxErr = std::sqrt(
             lstsq.getSolution().asEigen().dot(
                 lstsq.getCovariance().asEigen() * lstsq.getSolution().asEigen()
             )
         );
-        model.components.deep() = lstsq.getSolution();
-        model.components.asEigen() /= model.flux;
+#else // this is incorrect, but a good-enough workaround for now: weighted average in quadrature
+        model.fluxErr = std::sqrt(components[0].fluxErr * components[0].fluxErr * model.components[0]
+                                  + components[1].fluxErr * components[1].fluxErr * model.components[1]);
+#endif
     }
     model.chisq =
         (matrix.asEigen() * lstsq.getSolution().asEigen() - inputs.getData().asEigen()).squaredNorm()
         / (matrix.getSize<0>() - matrix.getSize<1>());
-    return model;
-}
-
-template <typename PixelT>
-FitComboModel FitComboAlgorithm::apply(
-    FitComboControl const & ctrl,
-    FitPsfModel const & psfModel,
-    std::vector<FitProfileModel> const & components,
-    afw::detection::Footprint const & footprint,
-    afw::image::Exposure<PixelT> const & image,
-    afw::geom::Point2D const & center
-) {
-    ModelInputHandler inputs = adjustInputs(
-        ctrl, psfModel, components, footprint, image, center
-    );
-    FitComboModel model = apply(ctrl, psfModel, components, inputs);
-    if (ctrl.scaleByPsfFit) {
-        CONST_PTR(afw::detection::Psf) psf = image.getPsf();
-        PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = psf->computeImage(center);
-        double s = psfImage->getArray().asEigen().sum();
-        psfImage->getArray().asEigen() /= s;
-        ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
-        FitComboModel psfProfileModel = apply(ctrl, psfModel, components, psfInputs, true);
-        model.psfFactor = psfProfileModel.flux;
-        model.flux /= model.psfFactor;
-        model.fluxErr /= model.psfFactor;
-    }
     return model;
 }
 
@@ -282,25 +245,36 @@ void FitComboAlgorithm::_apply(
     std::vector<FitProfileModel> components;
     for (std::size_t n = 0; n < _componentCtrl.size(); ++n) {
         components.push_back(FitProfileModel(*_componentCtrl[n], source));
-        if (components.back().flagFailed) {
+        if (components.back().fluxFlag) {
             return; // Don't bother trying linear components if one of the inputs failed.
-                    // This saves us from slowdown caused by bogus huge initial ellipses/
         }
         assert(lsst::utils::isfinite(components.back().ellipse.getArea()));
     }
-    FitComboModel model = apply(
-        getControl(), psfModel, components,
-        *source.getFootprint(),
-        exposure, center
-    );
+    ModelInputHandler inputs = adjustInputs(
+        getControl(), psfModel, components, *source.getFootprint(), exposure.getMaskedImage(), center);
+    FitComboModel model = apply(getControl(), psfModel, components, inputs);
+
     source.set(_componentsKey, model.components);
     source.set(_fluxKeys.meas, model.flux);
     source.set(_fluxKeys.err, model.fluxErr);
     source.set(_fluxKeys.flag, false);
-    if (getControl().scaleByPsfFit) {
-        source.set(_psfFactorKey, model.psfFactor);
-    }
     source.set(_chisqKey, model.chisq);
+
+    source.set(_fluxCorrectionKeys.psfFactorFlag, true);
+    PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = exposure.getPsf()->computeImage(center);
+    ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
+    std::vector<FitProfileModel> psfComponents;
+    for (std::size_t n = 0; n < _componentCtrl.size(); ++n) {
+        psfComponents.push_back(FitProfileModel(*_componentCtrl[n], source, true));
+        if (psfComponents.back().fluxFlag) {
+            return; // Don't bother trying linear components if one of the inputs failed.
+        }
+        assert(lsst::utils::isfinite(psfComponents.back().ellipse.getArea()));
+    }
+    FitComboModel psfProfileModel = apply(getControl(), psfModel, psfComponents, psfInputs);
+    source.set(_fluxCorrectionKeys.psfFactor, psfProfileModel.flux);
+    source.set(_fluxCorrectionKeys.psfFactorFlag, false);
+    
 }
 
 

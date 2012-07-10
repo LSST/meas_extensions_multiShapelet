@@ -23,6 +23,7 @@
 #ifndef MULTISHAPELET_FitProfile_h_INCLUDED
 #define MULTISHAPELET_FitProfile_h_INCLUDED
 
+#include "lsst/meas/algorithms/ScaledFlux.h"
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
@@ -50,9 +51,6 @@ public:
     LSST_CONTROL_FIELD(growFootprint, int, "Number of pixels to grow the footprint by.");
     LSST_CONTROL_FIELD(radiusInputFactor, double,
                        "Number of half-light radii used to determine the pixels to fit");
-    LSST_CONTROL_FIELD(scaleByPsfFit, bool,
-                       "If true, fit the PSF with the same model and divide the galaxy flux "
-                       "by the PSF flux.");
 
     PTR(FitProfileControl) clone() const {
         return boost::static_pointer_cast<FitProfileControl>(_clone());
@@ -71,8 +69,7 @@ public:
         profile("tractor-exponential"), psfName("multishapelet.psf"),
         minRadius(0.0001), minAxisRatio(0.0001),
         deconvolveShape(true), minInitialRadius(0.5),
-        usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0),
-        scaleByPsfFit(true)
+        usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0)
     {
         badMaskPlanes.push_back("BAD");
         badMaskPlanes.push_back("SAT");
@@ -104,15 +101,13 @@ struct FitProfileModel {
     double fluxErr; ///< uncertainty on flux
     afw::geom::ellipses::Quadrupole ellipse; ///< half-light radius ellipse
     double chisq; ///< reduced chi^2
-    double psfFactor; ///< "flux" from fit to normalized PSF model; 1 if this is turned off
-    bool flagFailed; ///< set to true if the inputs were unusable or an exception was thrown
+    bool fluxFlag; ///< set to true if the flux should not be trusted
     bool flagMaxIter; ///< set to true if the optimizer hit the maximum number of iterations
     bool flagTinyStep; ///< set to true if the optimizer step size got too small to make progress
     bool flagMinRadius; ///< set to true if the best-fit radius was at the minimum constraint
     bool flagMinAxisRatio; ///< set to true if the best-fit axis ratio was at the minimum constraint
     bool flagLargeArea; ///< set to true if the area inside the best-fit half-light ellipse was larger
                         ///< than the number of pixels used
-    PTR(afw::geom::ellipses::Quadrupole) psfEllipse; //< from profile fit to PSF model
 
     FitProfileModel(
         FitProfileControl const & ctrl,
@@ -121,7 +116,8 @@ struct FitProfileModel {
     );
 
     /// @brief Construct by extracting saved values from a SourceRecord.
-    FitProfileModel(FitProfileControl const & ctrl, afw::table::SourceRecord const & source);
+    FitProfileModel(FitProfileControl const & ctrl, afw::table::SourceRecord const & source,
+                    bool loadPsfFactorModel=false);
 
     /// @brief Deep copy constructor.
     FitProfileModel(FitProfileModel const & other);
@@ -135,13 +131,17 @@ struct FitProfileModel {
      *  @brief Return a MultiShapeletFunction representation of the model (unconvolved).
      */
     shapelet::MultiShapeletFunction asMultiShapelet(
-        afw::geom::Point2D const & center = afw::geom::Point2D(),
-        bool usePsfValues = false
+        afw::geom::Point2D const & center = afw::geom::Point2D()
     ) const;
 
 };
 
-class FitProfileAlgorithm : public algorithms::Algorithm {
+class FitProfileAlgorithm :
+        public algorithms::Algorithm
+#ifndef SWIG
+        , public algorithms::ScaledFlux
+#endif
+{
 public:
 
     typedef FitProfileControl Control;
@@ -158,6 +158,11 @@ public:
     FitProfileControl const & getControl() const {
         return static_cast<FitProfileControl const &>(algorithms::Algorithm::getControl());
     }
+
+#ifndef SWIG
+    virtual afw::table::KeyTuple<afw::table::Flux> getFluxKeys(int n=0) const { return _fluxKeys; }
+    virtual ScaledFlux::KeyTuple getFluxCorrectionKeys(int n=0) const { return _fluxCorrectionKeys; }
+#endif
 
     /**
      *  @brief Return an Objective that can be used to fit the convolved model to an image.
@@ -194,7 +199,7 @@ public:
         FitPsfModel const & psfModel,
         afw::geom::ellipses::Quadrupole & shape,
         afw::detection::Footprint const & footprint,
-        afw::image::Exposure<PixelT> const & image,
+        afw::image::MaskedImage<PixelT> const & image,
         afw::geom::Point2D const & center
     );
 
@@ -213,45 +218,19 @@ public:
     );
 
     /**
-     *  @brief Fit to a local PSF or kernel image.
+     *  @brief Fit the model, using an existing ModelInputHandler as the data.
      *
      *  @param[in]     ctrl           Details of the model to fit.
      *  @param[in]     psfModel       Localized double-shapelet PSF model.
      *  @param[in]     ellipse        Initial ellipse parameters
      *                                (possibly modified as defined by ctrl data members).
      *  @param[in]     inputs         Inputs that determine the data to be fit.
-     *
-     *  This overload ignores the scaleByPsfFit control parameter (it doesn't have access to the
-     *  PSF image).
      */
     static FitProfileModel apply(
         FitProfileControl const & ctrl,
         FitPsfModel const & psfModel,
         MultiGaussianObjective::EllipseCore const & ellipse,
         ModelInputHandler const & inputs
-    );
-
-    /**
-     *  @brief Fit to a local PSF or kernel image.
-     *
-     *  @param[in]     ctrl           Details of the model to fit.
-     *  @param[in]     psfModel       Localized double-shapelet PSF model.
-     *  @param[in,out] shape          Shape measurement used to set initial ellipse parameters
-     *                                (possibly modified as defined by ctrl data members).
-     *  @param[in]     footprint      Region of the image to fit (after modification according to
-     *                                ctrl parameters).
-     *  @param[in]     image          Full masked image to fit.
-     *  @param[in]     center         Center of the object in the image's PARENT coordinate system
-     *                                (i.e. xy0 is used).
-     */
-    template <typename PixelT>
-    static FitProfileModel apply(
-        FitProfileControl const & ctrl,
-        FitPsfModel const & psfModel,
-        afw::geom::ellipses::Quadrupole & shape,
-        afw::detection::Footprint const & footprint,
-        afw::image::Exposure<PixelT> const & image,
-        afw::geom::Point2D const & center
     );
 
 private:
@@ -266,10 +245,10 @@ private:
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitProfileAlgorithm);
 
     afw::table::KeyTuple< afw::table::Flux > _fluxKeys;
+    algorithms::ScaledFlux::KeyTuple _fluxCorrectionKeys;
     afw::table::Key< afw::table::Moments<double> > _ellipseKey;
     afw::table::Key< afw::table::Moments<double> > _psfEllipseKey;
     afw::table::Key< float > _chisqKey;
-    afw::table::Key< float > _psfFactorKey;
     afw::table::Key< afw::table::Flag > _flagMaxIterKey;
     afw::table::Key< afw::table::Flag > _flagTinyStepKey;
     afw::table::Key< afw::table::Flag > _flagMinRadiusKey;
