@@ -112,8 +112,6 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 
 %template(adjustInputs) lsst::meas::extensions::multiShapelet::FitProfileAlgorithm::adjustInputs<float>;
 %template(adjustInputs) lsst::meas::extensions::multiShapelet::FitProfileAlgorithm::adjustInputs<double>;
-%template(apply) lsst::meas::extensions::multiShapelet::FitProfileAlgorithm::apply<float>;
-%template(apply) lsst::meas::extensions::multiShapelet::FitProfileAlgorithm::apply<double>;
 
 %shared_ptr(lsst::meas::extensions::multiShapelet::FitComboControl);
 %shared_ptr(lsst::meas::extensions::multiShapelet::FitComboAlgorithm);
@@ -121,5 +119,3 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 
 %template(adjustInputs) lsst::meas::extensions::multiShapelet::FitComboAlgorithm::adjustInputs<float>;
 %template(adjustInputs) lsst::meas::extensions::multiShapelet::FitComboAlgorithm::adjustInputs<double>;
-%template(apply) lsst::meas::extensions::multiShapelet::FitComboAlgorithm::apply<float>;
-%template(apply) lsst::meas::extensions::multiShapelet::FitComboAlgorithm::apply<double>;

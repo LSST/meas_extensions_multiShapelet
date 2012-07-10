@@ -55,89 +55,75 @@ FitProfileModel::FitProfileModel(
 ) :
     profile(ctrl.profile), flux(amplitude), fluxErr(0.0),
     ellipse(MultiGaussianObjective::EllipseCore(parameters[0], parameters[1], parameters[2])),
-    chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0), flagFailed(false),
+    chisq(std::numeric_limits<double>::quiet_NaN()), fluxFlag(false),
     flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false),
     flagLargeArea(false)
 {}
 
 FitProfileModel::FitProfileModel(
-    FitProfileControl const & ctrl, afw::table::SourceRecord const & source
+    FitProfileControl const & ctrl, afw::table::SourceRecord const & source,
+    bool loadPsfFactorModel
 ) :
     profile(ctrl.profile), flux(1.0), fluxErr(0.0), ellipse(),
-    chisq(std::numeric_limits<double>::quiet_NaN()), psfFactor(1.0), flagFailed(false),
+    chisq(std::numeric_limits<double>::quiet_NaN()), fluxFlag(false),
     flagMaxIter(false), flagTinyStep(false), flagMinRadius(false), flagMinAxisRatio(false),
     flagLargeArea(false)
 {
     afw::table::SubSchema s = source.getSchema()[ctrl.name];
-    flux = source.get(s.find< double >("flux").key);
-    fluxErr = source.get(s.find< double >("flux.err").key);
-    flagFailed = source.get(s.find<afw::table::Flag>("flux.flags").key);
-    ellipse = source.get(s.find< afw::table::Moments<double> >("ellipse").key);
-    assert(flagFailed || lsst::utils::isfinite(ellipse.getArea()));
-    chisq = source.get(s.find<float>("chisq").key);
-    flagMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
-    flagTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
-    flagLargeArea = source.get(s.find<afw::table::Flag>("flags.largearea").key);
-    if (ctrl.scaleByPsfFit) {
-        try {
-            psfFactor = source.get(s.find<float>("psf.factor").key);
-            psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(
-                source.get(s.find< afw::table::Moments<double> >("psf.ellipse").key)
-            );
-        } catch (pex::exceptions::NotFoundException &) {}
+    if (loadPsfFactorModel) {
+        flux = source.get(s.find< float >("psffactor").key);
+        fluxFlag = source.get(s.find<afw::table::Flag>("flags.psffactor").key);
+        ellipse = source.get(s.find< afw::table::Moments<double> >("psffactor.ellipse").key);
+    } else {
+        flux = source.get(s.find< double >("flux").key);
+        fluxErr = source.get(s.find< double >("flux.err").key);
+        fluxFlag = source.get(s.find<afw::table::Flag>("flux.flags").key);
+        ellipse = source.get(s.find< afw::table::Moments<double> >("ellipse").key);
+        chisq = source.get(s.find<float>("chisq").key);
+        flagMaxIter = source.get(s.find<afw::table::Flag>("flags.maxiter").key);
+        flagTinyStep = source.get(s.find<afw::table::Flag>("flags.tinystep").key);
+        flagLargeArea = source.get(s.find<afw::table::Flag>("flags.largearea").key);
     }
+    assert(fluxFlag || lsst::utils::isfinite(ellipse.getArea()));
 }
 
 FitProfileModel::FitProfileModel(FitProfileModel const & other) :
     profile(other.profile), flux(other.flux), fluxErr(other.fluxErr), ellipse(other.ellipse),
-    chisq(other.chisq), psfFactor(other.psfFactor),
-    flagFailed(other.flagFailed),
+    chisq(other.chisq),
+    fluxFlag(other.fluxFlag),
     flagMaxIter(other.flagMaxIter),
     flagTinyStep(other.flagTinyStep),
     flagMinRadius(other.flagMinRadius),
     flagMinAxisRatio(other.flagMinAxisRatio),
     flagLargeArea(other.flagLargeArea)
-{
-    if (other.psfEllipse) {
-        psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(*other.psfEllipse);
-    }
-}
+{}
 
 FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
     if (&other != this) {
         profile = other.profile;
         flux = other.flux;
         fluxErr = other.fluxErr;
+        fluxFlag = other.fluxFlag;
         ellipse = other.ellipse;
         chisq = other.chisq;
-        psfFactor = other.psfFactor;
-        flagFailed = other.flagFailed;
         flagMaxIter = other.flagMaxIter;
         flagTinyStep = other.flagTinyStep;
         flagMinRadius = other.flagMinRadius;
         flagMinAxisRatio = other.flagMinAxisRatio;
         flagLargeArea = other.flagLargeArea;
-        if (other.psfEllipse) {
-            psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(*other.psfEllipse);
-        } else {
-            psfEllipse.reset();
-        }
     }
     return *this;
 }
 
 shapelet::MultiShapeletFunction FitProfileModel::asMultiShapelet(
-    afw::geom::Point2D const & center,
-    bool usePsfValues
+    afw::geom::Point2D const & center
 ) const {
     shapelet::MultiShapeletFunction::ElementList elements;
     MultiGaussian const & multiGaussian = MultiGaussianRegistry::lookup(profile);
-    afw::geom::ellipses::Quadrupole const & q = usePsfValues ? (*psfEllipse) : ellipse;
-    double amplitude = usePsfValues ? psfFactor : flux;
     for (MultiGaussian::const_iterator i = multiGaussian.begin(); i != multiGaussian.end(); ++i) {
-        afw::geom::ellipses::Ellipse fullEllipse(q, center);
+        afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
         elements.push_back(i->makeShapelet(fullEllipse));
-        elements.back().getCoefficients().asEigen() *= amplitude;
+        elements.back().getCoefficients().asEigen() *= flux;
     }
     return shapelet::MultiShapeletFunction(elements);
 }
@@ -156,10 +142,16 @@ FitProfileAlgorithm::FitProfileAlgorithm(
             "flux of multi-Gaussian approximation to the profile, integrated to infinite radius"
         )
     ),
+    _fluxCorrectionKeys(ctrl.name, schema),
     _ellipseKey(
         schema.addField< afw::table::Moments<double> >(
             ctrl.name + ".ellipse",
             "half-light radius ellipse"
+        )),
+    _psfEllipseKey(
+        schema.addField< afw::table::Moments<double> >(
+            ctrl.name + ".psffactor.ellipse",
+            "half-light radius ellipse for fit to PSF model realization"
         )),
     _chisqKey(
         schema.addField<float>(
@@ -194,16 +186,6 @@ FitProfileAlgorithm::FitProfileAlgorithm(
         )),
     _psfCtrl()
 {
-    if (ctrl.scaleByPsfFit) {
-        _psfEllipseKey = schema.addField< afw::table::Moments<double> >(
-            ctrl.name + ".psf.ellipse",
-            "ellipse from fitting the profile model to the PSF model"
-        );
-        _psfFactorKey = schema.addField<float>(
-            ctrl.name + ".psf.factor",
-            "PSF flux correction factor; multiply flux by this get uncorrected value"
-        );  
-    }
     algorithms::AlgorithmControlMap::const_iterator i = others.find(ctrl.psfName);
     if (i == others.end()) {
         throw LSST_EXCEPT(
@@ -253,7 +235,7 @@ ModelInputHandler FitProfileAlgorithm::adjustInputs(
     FitPsfModel const & psfModel,
     afw::geom::ellipses::Quadrupole & shape,
     afw::detection::Footprint const & footprint,
-    afw::image::Exposure<PixelT> const & image,
+    afw::image::MaskedImage<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
    
@@ -283,11 +265,11 @@ ModelInputHandler FitProfileAlgorithm::adjustInputs(
         std::vector<afw::geom::ellipses::Ellipse> boundsEllipses;
         boundsEllipses.push_back(afw::geom::ellipses::Ellipse(shape, center));
         boundsEllipses.back().getCore().scale(ctrl.radiusInputFactor);
-        return ModelInputHandler(image.getMaskedImage(), center,
+        return ModelInputHandler(image, center,
                                  boundsEllipses, footprint, ctrl.growFootprint, 
                                  badPixelMask, ctrl.usePixelWeights);
     } else {
-        return ModelInputHandler(image.getMaskedImage(), center, footprint, ctrl.growFootprint, 
+        return ModelInputHandler(image, center, footprint, ctrl.growFootprint, 
                                  badPixelMask, ctrl.usePixelWeights);
     }
 }
@@ -340,39 +322,9 @@ FitProfileModel FitProfileAlgorithm::apply(
         || (opt.getState() & HybridOptimizer::FAILURE_MINTRUST);
     model.flagMinRadius = constrained.first;
     model.flagMinAxisRatio = constrained.second;
-    model.flagFailed = model.flagLargeArea = !(model.ellipse.getArea() < inputs.getSize());
+    model.flagLargeArea = !(model.ellipse.getArea() < inputs.getSize());
+    model.fluxFlag = model.flagLargeArea;
     fitShapeletTerms(ctrl, psfModel, inputs, model);
-    return model;
-}
-
-template <typename PixelT>
-FitProfileModel FitProfileAlgorithm::apply(
-    FitProfileControl const & ctrl,
-    FitPsfModel const & psfModel,
-    afw::geom::ellipses::Quadrupole & shape,
-    afw::detection::Footprint const & footprint,
-    afw::image::Exposure<PixelT> const & image,
-    afw::geom::Point2D const & center
-) {
-    ModelInputHandler inputs = adjustInputs(
-        ctrl, psfModel, shape, footprint, image, center
-    );
-    MultiGaussianObjective::EllipseCore ellipse(shape);
-    FitProfileModel model = apply(ctrl, psfModel, ellipse, inputs);
-    if (ctrl.scaleByPsfFit) {
-        CONST_PTR(afw::detection::Psf) psf = image.getPsf();
-        PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = psf->computeImage(center);
-        double s = psfImage->getArray().asEigen().sum();
-        psfImage->getArray().asEigen() /= s;
-        ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
-        MultiGaussianObjective::EllipseCore psfEllipse(psfModel.ellipse);
-        psfEllipse.scale(ctrl.minInitialRadius);
-        FitProfileModel psfProfileModel = apply(ctrl, psfModel, psfEllipse, psfInputs);
-        model.psfFactor = psfProfileModel.flux;
-        model.flux /= model.psfFactor;
-        model.fluxErr /= model.psfFactor;
-        model.psfEllipse = boost::make_shared<afw::geom::ellipses::Quadrupole>(psfProfileModel.ellipse);
-    }
     return model;
 }
 
@@ -394,28 +346,35 @@ void FitProfileAlgorithm::_apply(
     if (source.getShapeFlag()) {
         shape = psfModel.ellipse;
     }
-    FitProfileModel model = apply(
-        getControl(), psfModel,
-        shape, *source.getFootprint(),
-        exposure, center
+    ModelInputHandler inputs = adjustInputs(
+        getControl(), psfModel, shape, *source.getFootprint(), exposure.getMaskedImage(), center
     );
-    assert(model.flagFailed || lsst::utils::isfinite(model.ellipse.getArea()));
+    FitProfileModel model = apply(getControl(), psfModel, shape, inputs);
+
+    assert(model.fluxFlag || lsst::utils::isfinite(model.ellipse.getArea()));
+
     source.set(_fluxKeys.meas, model.flux);
     source.set(_fluxKeys.err, model.fluxErr);
-    source.set(_fluxKeys.flag, model.flagFailed);
+    source.set(_fluxKeys.flag, model.fluxFlag);
     source.set(_ellipseKey, model.ellipse);
-    if (getControl().scaleByPsfFit) {
-        source.set(_psfEllipseKey, *model.psfEllipse);
-        source.set(_psfFactorKey, model.psfFactor);
-    }
     source.set(_chisqKey, model.chisq);
     source.set(_flagMaxIterKey, model.flagMaxIter);
     source.set(_flagTinyStepKey, model.flagTinyStep);
     source.set(_flagMinRadiusKey, model.flagMinRadius);
     source.set(_flagMinAxisRatioKey, model.flagMinAxisRatio);
     source.set(_flagLargeAreaKey, model.flagLargeArea);
-}
 
+    source.set(_fluxCorrectionKeys.psfFactorFlag, true);
+    PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = exposure.getPsf()->computeImage(center);
+    ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
+    MultiGaussianObjective::EllipseCore psfEllipse(psfModel.ellipse);
+    psfEllipse.scale(getControl().minInitialRadius);
+    FitProfileModel psfProfileModel = apply(getControl(), psfModel, psfEllipse, psfInputs);
+    source.set(_fluxCorrectionKeys.psfFactor, psfProfileModel.flux);
+    source.set(_psfEllipseKey, model.ellipse);
+    source.set(_fluxCorrectionKeys.psfFactorFlag, psfProfileModel.fluxFlag);
+
+}
 
 LSST_MEAS_ALGORITHM_PRIVATE_IMPLEMENTATION(FitProfileAlgorithm);
 
