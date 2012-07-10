@@ -217,9 +217,9 @@ FitComboModel FitComboAlgorithm::apply(
                 lstsq.getCovariance().asEigen() * lstsq.getSolution().asEigen()
             )
         );
-#else // this is incorrect, but a good-enough workaround for now: weighted average of component errors
-        model.fluxErr = components[0].fluxErr * model.components[0]
-            + components[1].fluxErr * model.components[1];
+#else // this is incorrect, but a good-enough workaround for now: weighted average in quadrature
+        model.fluxErr = std::sqrt(components[0].fluxErr * components[0].fluxErr * model.components[0]
+                                  + components[1].fluxErr * components[1].fluxErr * model.components[1]);
 #endif
     }
     model.chisq =
