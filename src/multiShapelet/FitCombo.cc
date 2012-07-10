@@ -191,6 +191,8 @@ FitComboModel FitComboAlgorithm::apply(
             matrixT[n].asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
         }
     }
+    // We should really do constrained linear least squares to get the errors right, but this
+    // produces the same result for the fluxes, and we don't have a constrained solver handy.
     afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
     if (lstsq.getSolution()[0] < 0.0) {
         if (lstsq.getSolution()[1] < 0.0) {
@@ -207,13 +209,18 @@ FitComboModel FitComboAlgorithm::apply(
         model.fluxErr = components[0].fluxErr;
     } else {
         model.flux = lstsq.getSolution().asEigen().sum();
+        model.components.deep() = lstsq.getSolution();
+        model.components.asEigen() /= model.flux;
+#if 0 // don't know why this doesn't work; numbers are way too big
         model.fluxErr = std::sqrt(
             lstsq.getSolution().asEigen().dot(
                 lstsq.getCovariance().asEigen() * lstsq.getSolution().asEigen()
             )
         );
-        model.components.deep() = lstsq.getSolution();
-        model.components.asEigen() /= model.flux;
+#else // this is incorrect, but a good-enough workaround for now: weighted average of component errors
+        model.fluxErr = components[0].fluxErr * model.components[0]
+            + components[1].fluxErr * model.components[1];
+#endif
     }
     model.chisq =
         (matrix.asEigen() * lstsq.getSolution().asEigen() - inputs.getData().asEigen()).squaredNorm()
