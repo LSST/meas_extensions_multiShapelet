@@ -48,6 +48,9 @@ public:
                        "If true, individually weigh pixels using the variance image.");
     LSST_CONTROL_FIELD(badMaskPlanes, std::vector<std::string>,
                        "Mask planes that indicate pixels that should be ignored in the fit.");
+    LSST_CONTROL_FIELD(maxBadPixelFraction, double,
+                       "Maximum fraction of pixels that may be ignored due to masks; "
+                       "more than this and we don't even try.");
     LSST_CONTROL_FIELD(growFootprint, int, "Number of pixels to grow the footprint by.");
     LSST_CONTROL_FIELD(radiusInputFactor, double,
                        "Number of half-light radii used to determine the pixels to fit");
@@ -69,7 +72,8 @@ public:
         profile("tractor-exponential"), psfName("multishapelet.psf"),
         minRadius(0.0001), minAxisRatio(0.0001),
         deconvolveShape(true), minInitialRadius(0.5),
-        usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0)
+        usePixelWeights(false), badMaskPlanes(), maxBadPixelFraction(0.1),
+        growFootprint(5), radiusInputFactor(4.0)
     {
         badMaskPlanes.push_back("BAD");
         badMaskPlanes.push_back("SAT");

@@ -68,14 +68,16 @@ public:
     template <typename PixelT>
     ModelInputHandler(
         afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center, 
-        afw::geom::Box2I const & region, afw::image::MaskPixel badPixelMask=0x0, bool usePixelWeights=false
+        afw::geom::Box2I const & region, afw::image::MaskPixel badPixelMask=0x0, bool usePixelWeights=false,
+        double maxBadPixelFraction=1.00
     );
 
     template <typename PixelT>
     ModelInputHandler(
         afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center, 
         afw::detection::Footprint const & region, int growFootprint=0,
-        afw::image::MaskPixel badPixelMask=0x0, bool usePixelWeights=false
+        afw::image::MaskPixel badPixelMask=0x0, bool usePixelWeights=false,
+        double maxBadPixelFraction=1.00
     );
 
     template <typename PixelT>
@@ -83,7 +85,8 @@ public:
         afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center,
         std::vector<afw::geom::ellipses::Ellipse> const & ellipses, 
         afw::detection::Footprint const & region, int growFootprint=0,
-        afw::image::MaskPixel badPixelMask=0x0, bool usePixelWeights=false
+        afw::image::MaskPixel badPixelMask=0x0, bool usePixelWeights=false,
+        double maxBadPixelFraction=1.00
     );
 
 private:

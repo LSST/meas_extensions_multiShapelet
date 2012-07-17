@@ -267,10 +267,10 @@ ModelInputHandler FitProfileAlgorithm::adjustInputs(
         boundsEllipses.back().getCore().scale(ctrl.radiusInputFactor);
         return ModelInputHandler(image, center,
                                  boundsEllipses, footprint, ctrl.growFootprint, 
-                                 badPixelMask, ctrl.usePixelWeights);
+                                 badPixelMask, ctrl.usePixelWeights, ctrl.maxBadPixelFraction);
     } else {
         return ModelInputHandler(image, center, footprint, ctrl.growFootprint, 
-                                 badPixelMask, ctrl.usePixelWeights);
+                                 badPixelMask, ctrl.usePixelWeights, ctrl.maxBadPixelFraction);
     }
 }
 

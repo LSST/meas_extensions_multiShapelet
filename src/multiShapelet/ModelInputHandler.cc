@@ -152,10 +152,18 @@ ModelInputHandler::ModelInputHandler(
 template <typename PixelT>
 ModelInputHandler::ModelInputHandler(
     afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center, 
-    afw::geom::Box2I const & region, afw::image::MaskPixel badPixelMask, bool usePixelWeights
+    afw::geom::Box2I const & region, afw::image::MaskPixel badPixelMask, bool usePixelWeights,
+    double maxBadPixelFraction
 ) {
     _footprint = boost::make_shared<afw::detection::Footprint>(region);
+    double originalArea = _footprint->getArea();
     _footprint->intersectMask(*image.getMask(), badPixelMask);
+    if ((1.0 - _footprint->getArea() / originalArea) > maxBadPixelFraction) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Too many masked pixels."
+        );
+    } 
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
             pex::exceptions::RuntimeErrorException,
@@ -178,14 +186,22 @@ template <typename PixelT>
 ModelInputHandler::ModelInputHandler(
     afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center, 
     afw::detection::Footprint const & region, int growFootprint,
-    afw::image::MaskPixel badPixelMask, bool usePixelWeights
+    afw::image::MaskPixel badPixelMask, bool usePixelWeights,
+    double maxBadPixelFraction
 ) {
     if (growFootprint) {
         _footprint = afw::detection::growFootprint(region, growFootprint);
     } else {
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
+    double originalArea = _footprint->getArea();
     _footprint->intersectMask(*image.getMask(), badPixelMask);
+    if ((1.0 - _footprint->getArea() / originalArea) > maxBadPixelFraction) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Too many masked pixels."
+        );
+    } 
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
             pex::exceptions::RuntimeErrorException,
@@ -209,7 +225,8 @@ ModelInputHandler::ModelInputHandler(
     afw::image::MaskedImage<PixelT> const & image, afw::geom::Point2D const & center,
     std::vector<afw::geom::ellipses::Ellipse> const & ellipses,
     afw::detection::Footprint const & region, int growFootprint,
-    afw::image::MaskPixel badPixelMask, bool usePixelWeights
+    afw::image::MaskPixel badPixelMask, bool usePixelWeights,
+    double maxBadPixelFraction
 ) {
     if (growFootprint) {
         _footprint = afw::detection::growFootprint(region, growFootprint);
@@ -217,7 +234,14 @@ ModelInputHandler::ModelInputHandler(
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
     _footprint = mergeFootprintWithEllipses(*_footprint, ellipses);
+    double originalArea = _footprint->getArea();
     _footprint->intersectMask(*image.getMask(), badPixelMask);
+    if ((1.0 - _footprint->getArea() / originalArea) > maxBadPixelFraction) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Too many masked pixels."
+        );
+    } 
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
             pex::exceptions::RuntimeErrorException,
@@ -249,16 +273,17 @@ ModelInputHandler::ModelInputHandler(
         afw::detection::Footprint const & region, int growFootprint);   \
     template ModelInputHandler::ModelInputHandler(                      \
         afw::image::MaskedImage<T> const & image, afw::geom::Point2D const & center, \
-        afw::geom::Box2I const & region, afw::image::MaskPixel badPixelMask, bool usePixelWeights); \
+        afw::geom::Box2I const & region, afw::image::MaskPixel badPixelMask, \
+        bool usePixelWeights, double maxBadPixelFraction);              \
     template ModelInputHandler::ModelInputHandler(                      \
         afw::image::MaskedImage<T> const & image, afw::geom::Point2D const & center, \
-        afw::detection::Footprint const & region, int growFootprint,  \
-        afw::image::MaskPixel badPixelMask, bool usePixelWeights);      \
+        afw::detection::Footprint const & region, int growFootprint,    \
+        afw::image::MaskPixel badPixelMask, bool usePixelWeights, double maxBadPixelFraction); \
     template ModelInputHandler::ModelInputHandler(                      \
-        afw::image::MaskedImage<T> const & image, afw::geom::Point2D const & center,\
+        afw::image::MaskedImage<T> const & image, afw::geom::Point2D const & center, \
         std::vector<afw::geom::ellipses::Ellipse> const & ellipses,     \
         afw::detection::Footprint const & region, int growFootprint,    \
-        afw::image::MaskPixel badPixelMask, bool usePixelWeights)
+        afw::image::MaskPixel badPixelMask, bool usePixelWeights, double maxBadPixelFraction)
 
 INSTANTIATE(float);
 INSTANTIATE(double);
