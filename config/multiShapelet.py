@@ -4,5 +4,5 @@
 
 import lsst.meas.extensions.multiShapelet
 
-root.measurement.algorithms.names.update(lsst.meas.extensions.multiShapelet.algorithms)
+root.measurement.algorithms.names |= lsst.meas.extensions.multiShapelet.algorithms
 root.measurement.slots.modelFlux = "multishapelet.combo.flux"
