@@ -169,6 +169,7 @@ ModelInputHandler::ModelInputHandler(
     if (!usePixelWeights) {
         _weights.asEigen().setConstant(_weights.asEigen().mean());
     }
+    // "operator=" needed here to workaround clang bug in resolving inherited assignment operators
     _weights.asEigen<Eigen::ArrayXpr>().operator=(_weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse());
     _data.asEigen<Eigen::ArrayXpr>() *= _weights.asEigen<Eigen::ArrayXpr>();
     initCoords(_x, _y, *_footprint, center);
