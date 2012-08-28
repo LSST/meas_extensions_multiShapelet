@@ -238,16 +238,20 @@ ModelInputHandler FitProfileAlgorithm::adjustInputs(
     afw::image::MaskedImage<PixelT> const & image,
     afw::geom::Point2D const & center
 ) {
-   
     MultiGaussianObjective::EllipseCore ellipse(shape);
-    if (ctrl.deconvolveShape) {
-        try {
-            ellipse = ctrl.getMultiGaussian().deconvolve(
-                shape, psfModel.ellipse, psfModel.getMultiGaussian()
-            );
-        } catch (pex::exceptions::InvalidParameterException &) {
-            ellipse = psfModel.ellipse;
-            ellipse.scale(ctrl.minInitialRadius);
+    if (!(ellipse.getArea() > 0.0)) {  // phrasing comparison this way also guards against NaN
+        ellipse = psfModel.ellipse;
+        ellipse.scale(ctrl.minInitialRadius);
+    } else {
+        if (ctrl.deconvolveShape) {
+            try {
+                ellipse = ctrl.getMultiGaussian().deconvolve(
+                    shape, psfModel.ellipse, psfModel.getMultiGaussian()
+                );
+            } catch (pex::exceptions::InvalidParameterException &) {
+                ellipse = psfModel.ellipse;
+                ellipse.scale(ctrl.minInitialRadius);
+            }
         }
     }
     // We never want to start with an ellipse smaller than the PSF or an ellipticity
@@ -342,6 +346,12 @@ void FitProfileAlgorithm::_apply(
         );
     }
     FitPsfModel psfModel(*_psfCtrl, source);
+    if (psfModel.hasFailed() || !(psfModel.ellipse.getArea() > 0.0)) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "PSF shapelet fit failed; cannot fit galaxy model."
+        );
+    }
     afw::geom::ellipses::Quadrupole shape = source.getShape();
     if (source.getShapeFlag()) {
         shape = psfModel.ellipse;

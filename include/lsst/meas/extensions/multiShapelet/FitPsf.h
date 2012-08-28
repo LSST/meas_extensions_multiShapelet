@@ -101,6 +101,8 @@ struct FitPsfModel {
     bool failedMinRadius; ///< set to true if the best-fit radius was at the minimum constraint
     bool failedMinAxisRatio; ///< set to true if the best-fit axis ratio was at the minimum constraint
 
+    bool hasFailed() const { return failedMaxIter || failedTinyStep || failedMinRadius || failedMinAxisRatio; }
+
     /**
      *  @brief Construct a model from a double-Gaussian optimization parameter vector.
      *
