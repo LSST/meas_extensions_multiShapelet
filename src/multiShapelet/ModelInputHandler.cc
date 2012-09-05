@@ -64,6 +64,12 @@ PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
         ellipseFootprints[n] = boost::make_shared<afw::detection::Footprint>(ellipses[n]);
         bbox.include(ellipseFootprints[n]->getBBox());
     }
+    if (!(bbox.getArea() > 0)) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Invalid bounding box in model fit"
+        );
+    }
     afw::image::Mask<> mask(bbox);
     assert(mask.getBBox(afw::image::PARENT).contains(footprint.getBBox()));
     afw::detection::setMaskFromFootprint(&mask, footprint, afw::image::MaskPixel(0x1));
