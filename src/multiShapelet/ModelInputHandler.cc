@@ -64,6 +64,12 @@ PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
         ellipseFootprints[n] = boost::make_shared<afw::detection::Footprint>(ellipses[n]);
         bbox.include(ellipseFootprints[n]->getBBox());
     }
+    if (!(bbox.getArea() > 0)) {
+        throw LSST_EXCEPT(
+            pex::exceptions::RuntimeErrorException,
+            "Invalid bounding box in model fit"
+        );
+    }
     afw::image::Mask<> mask(bbox);
     assert(mask.getBBox(afw::image::PARENT).contains(footprint.getBBox()));
     afw::detection::setMaskFromFootprint(&mask, footprint, afw::image::MaskPixel(0x1));
@@ -177,7 +183,8 @@ ModelInputHandler::ModelInputHandler(
     if (!usePixelWeights) {
         _weights.asEigen().setConstant(_weights.asEigen().mean());
     }
-    _weights.asEigen<Eigen::ArrayXpr>() = _weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse();
+    // "operator=" needed here to workaround clang bug in resolving inherited assignment operators
+    _weights.asEigen<Eigen::ArrayXpr>().operator=(_weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse());
     _data.asEigen<Eigen::ArrayXpr>() *= _weights.asEigen<Eigen::ArrayXpr>();
     initCoords(_x, _y, *_footprint, center);
 }
@@ -215,7 +222,7 @@ ModelInputHandler::ModelInputHandler(
     if (!usePixelWeights) {
         _weights.asEigen().setConstant(_weights.asEigen().mean());
     }
-    _weights.asEigen<Eigen::ArrayXpr>() = _weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse();
+    _weights.asEigen<Eigen::ArrayXpr>().operator=(_weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse());
     _data.asEigen<Eigen::ArrayXpr>() *= _weights.asEigen<Eigen::ArrayXpr>();
     initCoords(_x, _y, *_footprint, center);
 }
@@ -255,7 +262,7 @@ ModelInputHandler::ModelInputHandler(
     if (!usePixelWeights) {
         _weights.asEigen().setConstant(_weights.asEigen().mean());
     }
-    _weights.asEigen<Eigen::ArrayXpr>() = _weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse();
+    _weights.asEigen<Eigen::ArrayXpr>().operator=(_weights.asEigen<Eigen::ArrayXpr>().sqrt().inverse());
     _data.asEigen<Eigen::ArrayXpr>() *= _weights.asEigen<Eigen::ArrayXpr>();
     initCoords(_x, _y, *_footprint, center);
 }
