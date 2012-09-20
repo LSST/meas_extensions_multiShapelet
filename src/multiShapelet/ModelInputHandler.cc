@@ -54,7 +54,8 @@ void initCoords(
 
 PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
     afw::detection::Footprint const & footprint,
-    std::vector<afw::geom::ellipses::Ellipse> const & ellipses
+    std::vector<afw::geom::ellipses::Ellipse> const & ellipses,
+    afw::geom::Box2I const & imageBox
 ) {
     // TODO: we do a lot of turning footprints into masks here and elsewhere; should really only
     // have to do that once
@@ -64,7 +65,8 @@ PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
         ellipseFootprints[n] = boost::make_shared<afw::detection::Footprint>(ellipses[n]);
         bbox.include(ellipseFootprints[n]->getBBox());
     }
-    if (!(bbox.getArea() > 0)) {
+
+    if (!(bbox.getArea() > 0) || !(imageBox.contains(bbox))) {
         throw LSST_EXCEPT(
             pex::exceptions::RuntimeErrorException,
             "Invalid bounding box in model fit"
@@ -142,7 +144,7 @@ ModelInputHandler::ModelInputHandler(
     } else {
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses);
+    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses, image.getBBox(afw::image::PARENT));
     _footprint->clipTo(image.getBBox(afw::image::PARENT));
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
@@ -240,7 +242,7 @@ ModelInputHandler::ModelInputHandler(
     } else {
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses);
+    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses, image.getBBox(afw::image::PARENT));
     double originalArea = _footprint->getArea();
     _footprint->intersectMask(*image.getMask(), badPixelMask);
     if ((1.0 - _footprint->getArea() / originalArea) > maxBadPixelFraction) {
