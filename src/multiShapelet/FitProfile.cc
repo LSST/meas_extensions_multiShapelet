@@ -41,7 +41,8 @@ PTR(algorithms::AlgorithmControl) FitProfileControl::_clone() const {
 PTR(algorithms::Algorithm) FitProfileControl::_makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmControlMap const & others,
+    bool isForced
 ) const {
     return boost::make_shared<FitProfileAlgorithm>(*this, boost::ref(schema), others);
 }

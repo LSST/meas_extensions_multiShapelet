@@ -62,7 +62,8 @@ public:
     PTR(FitProfileAlgorithm) makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)(),
-        algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
+        algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap(),
+        bool isForced = false
     ) const;
 
     MultiGaussian const & getMultiGaussian() const { return MultiGaussianRegistry::lookup(profile); }
@@ -86,7 +87,8 @@ private:
     virtual PTR(algorithms::Algorithm) _makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata,
-        algorithms::AlgorithmControlMap const & other
+        algorithms::AlgorithmControlMap const & other,
+        bool isForced
     ) const;
 };
 
@@ -264,9 +266,12 @@ private:
 inline PTR(FitProfileAlgorithm) FitProfileControl::makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmControlMap const & others,
+    bool isForced
 ) const {
-    return boost::static_pointer_cast<FitProfileAlgorithm>(_makeAlgorithm(schema, metadata, others));
+    return boost::static_pointer_cast<FitProfileAlgorithm>(
+        _makeAlgorithm(schema, metadata, others, isForced)
+    );
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet

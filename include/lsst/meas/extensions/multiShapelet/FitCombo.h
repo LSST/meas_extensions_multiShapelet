@@ -50,7 +50,8 @@ public:
     PTR(FitComboAlgorithm) makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)(),
-        algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
+        algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap(),
+        bool isForced = false
     ) const;
 
     FitComboControl() :
@@ -71,7 +72,8 @@ private:
     virtual PTR(algorithms::Algorithm) _makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata,
-        algorithms::AlgorithmControlMap const & other
+        algorithms::AlgorithmControlMap const & other,
+        bool isForced
     ) const;
 };
 
@@ -162,9 +164,10 @@ private:
 inline PTR(FitComboAlgorithm) FitComboControl::makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmControlMap const & others,
+    bool isForced
 ) const {
-    return boost::static_pointer_cast<FitComboAlgorithm>(_makeAlgorithm(schema, metadata, others));
+    return boost::static_pointer_cast<FitComboAlgorithm>(_makeAlgorithm(schema, metadata, others, isForced));
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet
