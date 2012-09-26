@@ -32,8 +32,8 @@ class FitComboAlgorithm;
 class FitComboControl : public algorithms::AlgorithmControl {
 public:
 
-    LSST_CONTROL_FIELD(componentNames, std::vector<std::string>,
-                       "Root names of the FitProfileAlgorithm fields to be fit together.");
+    LSST_CONTROL_FIELD(expName, std::string, "Root name of the FitProfileAlgorithm exp component fields.");
+    LSST_CONTROL_FIELD(devName, std::string, "Root name of the FitProfileAlgorithm dev comoonent fields.");
     LSST_CONTROL_FIELD(psfName, std::string, "Root name of the FitPsfAlgorithm fields.");
     LSST_CONTROL_FIELD(usePixelWeights, bool,
                        "If true, individually weigh pixels using the variance image.");
@@ -50,20 +50,17 @@ public:
     PTR(FitComboAlgorithm) makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)(),
-        algorithms::AlgorithmMap const & others = algorithms::AlgorithmMap()
+        algorithms::AlgorithmMap const & others = algorithms::AlgorithmMap(),
+        bool isForced = false
     ) const;
 
     FitComboControl() :
         algorithms::AlgorithmControl("multishapelet.combo", 2.6),
-        componentNames(), psfName("multishapelet.psf"),
+        expName("multishapelet.exp"), devName("multishapelet.dev"), psfName("multishapelet.psf"),
         usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0)
     {
-        componentNames.push_back("multishapelet.exp");
-        componentNames.push_back("multishapelet.dev");
-        badMaskPlanes.push_back("BAD");
+        badMaskPlanes.push_back("EDGE");
         badMaskPlanes.push_back("SAT");
-        badMaskPlanes.push_back("INTRP");
-        badMaskPlanes.push_back("CR");
     }
 
 private:
@@ -71,7 +68,8 @@ private:
     virtual PTR(algorithms::Algorithm) _makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata,
-        algorithms::AlgorithmMap const & other
+        algorithms::AlgorithmMap const & other,
+        bool isForced
     ) const;
 };
 
@@ -80,10 +78,9 @@ private:
  */
 struct FitComboModel {
 
-    ndarray::Array<float,1,1> components; ///< relative flux of each component (always sums to one)
+    double devFrac; ///< fraction of total flux in the de Vaucouleur component
     double flux; ///< total flux of model, integrated to infinity (includes PSF factor, if enabled)
     double fluxErr; ///< uncertainty on flux
-    double chisq; ///< reduced chi^2
 
     explicit FitComboModel(FitComboControl const & ctrl);
 
@@ -127,7 +124,8 @@ public:
     static ModelInputHandler adjustInputs(
         FitComboControl const & ctrl,
         FitPsfModel const & psfModel,
-        std::vector<FitProfileModel> const & components,
+        FitProfileModel const & expComponent,
+        FitProfileModel const & devComponent,
         afw::detection::Footprint const & footprint,
         afw::image::MaskedImage<PixelT> const & image,
         afw::geom::Point2D const & center
@@ -136,7 +134,8 @@ public:
     static FitComboModel apply(
         FitComboControl const & ctrl,
         FitPsfModel const & psfModel,
-        std::vector<FitProfileModel> const & components,
+        FitProfileModel const & expComponent,
+        FitProfileModel const & devComponent,
         ModelInputHandler const & inputs
     );
 
@@ -149,22 +148,40 @@ private:
         afw::geom::Point2D const & center
     ) const;
 
+    template <typename PixelT>
+    void _applyForced(
+        afw::table::SourceRecord & source,
+        afw::image::Exposure<PixelT> const & exposure,
+        afw::geom::Point2D const & center,
+        afw::table::SourceRecord const & reference,
+        afw::geom::AffineTransform const & refToMeas
+    ) const;
+
+    template <typename PixelT>
+    void _fitPsfFactor(
+        afw::table::SourceRecord & source,
+        afw::image::Exposure<PixelT> const & exposure,
+        afw::geom::Point2D const & center,
+        FitPsfModel const & psfModel
+    ) const;
+
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitComboAlgorithm);
 
     afw::table::KeyTuple< afw::table::Flux > _fluxKeys;
     algorithms::ScaledFlux::KeyTuple _fluxCorrectionKeys;
-    afw::table::Key< afw::table::Array<float> > _componentsKey;
-    afw::table::Key< float > _chisqKey;
-    std::vector<CONST_PTR(FitProfileControl)> _componentCtrl;
+    afw::table::Key< float > _devFracKey;
+    CONST_PTR(FitProfileControl) _expComponentCtrl;
+    CONST_PTR(FitProfileControl) _devComponentCtrl;
     CONST_PTR(FitPsfControl) _psfCtrl;
 };
 
 inline PTR(FitComboAlgorithm) FitComboControl::makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmMap const & others
+    algorithms::AlgorithmMap const & others,
+    bool isForced
 ) const {
-    return boost::static_pointer_cast<FitComboAlgorithm>(_makeAlgorithm(schema, metadata, others));
+    return boost::static_pointer_cast<FitComboAlgorithm>(_makeAlgorithm(schema, metadata, others, isForced));
 }
 
 }}}} // namespace lsst::meas::extensions::multiShapelet
