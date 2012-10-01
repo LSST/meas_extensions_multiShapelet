@@ -151,6 +151,15 @@ private:
         afw::geom::Point2D const & center
     ) const;
 
+    template <typename PixelT>
+    void _applyForced(
+        afw::table::SourceRecord & source,
+        afw::image::Exposure<PixelT> const & exposure,
+        afw::geom::Point2D const & center,
+        afw::table::SourceRecord const & reference,
+        afw::geom::AffineTransform const & refToMeas
+    ) const;
+
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitComboAlgorithm);
 
     afw::table::KeyTuple< afw::table::Flux > _fluxKeys;

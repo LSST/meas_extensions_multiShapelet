@@ -115,7 +115,7 @@ FitComboAlgorithm::FitComboAlgorithm(
         nameIter != ctrl.componentNames.end();
         ++nameIter
     ) {
-        algorithms::AlgorithmControlMap::const_iterator i = others.find(*nameIter);
+        i = others.find(*nameIter);
         if (i == others.end()) {
             throw LSST_EXCEPT(
                 pex::exceptions::LogicErrorException,
@@ -246,6 +246,58 @@ void FitComboAlgorithm::_apply(
     std::vector<FitProfileModel> components;
     for (std::size_t n = 0; n < _componentCtrl.size(); ++n) {
         components.push_back(FitProfileModel(*_componentCtrl[n], source));
+        if (components.back().fluxFlag) {
+            return; // Don't bother trying linear components if one of the inputs failed.
+        }
+        assert(lsst::utils::isfinite(components.back().ellipse.getArea()));
+    }
+    ModelInputHandler inputs = adjustInputs(
+        getControl(), psfModel, components, *source.getFootprint(), exposure.getMaskedImage(), center);
+    FitComboModel model = apply(getControl(), psfModel, components, inputs);
+
+    source.set(_componentsKey, model.components);
+    source.set(_fluxKeys.meas, model.flux);
+    source.set(_fluxKeys.err, model.fluxErr);
+    source.set(_fluxKeys.flag, false);
+    source.set(_chisqKey, model.chisq);
+
+    source.set(_fluxCorrectionKeys.psfFactorFlag, true);
+    PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = exposure.getPsf()->computeImage(center);
+    ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
+    std::vector<FitProfileModel> psfComponents;
+    for (std::size_t n = 0; n < _componentCtrl.size(); ++n) {
+        psfComponents.push_back(FitProfileModel(*_componentCtrl[n], source, true));
+        if (psfComponents.back().fluxFlag) {
+            return; // Don't bother trying linear components if one of the inputs failed.
+        }
+        assert(lsst::utils::isfinite(psfComponents.back().ellipse.getArea()));
+    }
+    FitComboModel psfProfileModel = apply(getControl(), psfModel, psfComponents, psfInputs);
+    source.set(_fluxCorrectionKeys.psfFactor, psfProfileModel.flux);
+    source.set(_fluxCorrectionKeys.psfFactorFlag, false);
+    
+}
+
+
+template <typename PixelT>
+void FitComboAlgorithm::_applyForced(
+    afw::table::SourceRecord & source,
+    afw::image::Exposure<PixelT> const & exposure,
+    afw::geom::Point2D const & center,
+    afw::table::SourceRecord const & reference,
+    afw::geom::AffineTransform const & refToMeas
+) const {
+    source.set(_fluxKeys.flag, true);
+    if (!exposure.hasPsf()) {
+        throw LSST_EXCEPT(
+            pex::exceptions::LogicErrorException,
+            "Cannot run FitComboAlgorithm without a PSF."
+        );
+    }
+    FitPsfModel psfModel(*_psfCtrl, source);
+    std::vector<FitProfileModel> components;
+    for (std::size_t n = 0; n < _componentCtrl.size(); ++n) {
+        components.push_back(FitProfileModel(*_componentCtrl[n], reference));
         if (components.back().fluxFlag) {
             return; // Don't bother trying linear components if one of the inputs failed.
         }
