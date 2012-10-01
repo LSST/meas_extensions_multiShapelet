@@ -44,12 +44,6 @@ PTR(algorithms::Algorithm) FitProfileControl::_makeAlgorithm(
     algorithms::AlgorithmControlMap const & others,
     bool isForced
 ) const {
-    if (isForced) {
-        throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
-            (boost::format("Cannot run %s in forced measurement mode.") % this->name).str()
-        );
-    }
     return boost::make_shared<FitProfileAlgorithm>(*this, boost::ref(schema), others, isForced);
 }
 
