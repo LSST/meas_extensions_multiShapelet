@@ -426,6 +426,7 @@ void FitProfileAlgorithm::_applyForced(
             "Reference galaxy model fit failed; cannot run forced modeling."
         );
     }
+    model.ellipse = model.ellipse.transform(refToMeas.getLinear());
 
     ModelInputHandler inputs = adjustInputs(
         getControl(), psfModel, model.ellipse, *source.getFootprint(),
