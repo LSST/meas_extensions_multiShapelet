@@ -83,7 +83,6 @@ struct FitComboModel {
     double devFrac; ///< fraction of total flux in the de Vaucouleur component
     double flux; ///< total flux of model, integrated to infinity (includes PSF factor, if enabled)
     double fluxErr; ///< uncertainty on flux
-    double chisq; ///< reduced chi^2
 
     explicit FitComboModel(FitComboControl const & ctrl);
 
@@ -160,12 +159,19 @@ private:
         afw::geom::AffineTransform const & refToMeas
     ) const;
 
+    template <typename PixelT>
+    void _fitPsfFactor(
+        afw::table::SourceRecord & source,
+        afw::image::Exposure<PixelT> const & exposure,
+        afw::geom::Point2D const & center,
+        FitPsfModel const & psfModel
+    ) const;
+
     LSST_MEAS_ALGORITHM_PRIVATE_INTERFACE(FitComboAlgorithm);
 
     afw::table::KeyTuple< afw::table::Flux > _fluxKeys;
     algorithms::ScaledFlux::KeyTuple _fluxCorrectionKeys;
     afw::table::Key< float > _devFracKey;
-    afw::table::Key< float > _chisqKey;
     CONST_PTR(FitProfileControl) _expComponentCtrl;
     CONST_PTR(FitProfileControl) _devComponentCtrl;
     CONST_PTR(FitPsfControl) _psfCtrl;

@@ -50,13 +50,11 @@ PTR(algorithms::Algorithm) FitComboControl::_makeAlgorithm(
 
 FitComboModel::FitComboModel(FitComboControl const & ctrl) :
     devFrac(0.0),
-    flux(std::numeric_limits<double>::quiet_NaN()), fluxErr(std::numeric_limits<double>::quiet_NaN()),
-    chisq(std::numeric_limits<double>::quiet_NaN())
+    flux(std::numeric_limits<double>::quiet_NaN()), fluxErr(std::numeric_limits<double>::quiet_NaN())
 {}
 
 FitComboModel::FitComboModel(FitComboModel const & other) :
-    devFrac(other.devFrac), flux(other.flux), fluxErr(other.fluxErr),
-    chisq(other.chisq)
+    devFrac(other.devFrac), flux(other.flux), fluxErr(other.fluxErr)
 {}
 
 FitComboModel & FitComboModel::operator=(FitComboModel const & other) {
@@ -64,7 +62,6 @@ FitComboModel & FitComboModel::operator=(FitComboModel const & other) {
         devFrac = other.devFrac;
         flux = other.flux;
         fluxErr = other.fluxErr;
-        chisq = other.chisq;
     }
     return *this;
 }
@@ -113,11 +110,6 @@ FitComboAlgorithm::FitComboAlgorithm(
             ctrl.name + ".devfrac",
             "fraction of total flux in the de Vaucouleur component"
         )),
-    _chisqKey(
-        schema.addField<float>(
-            ctrl.name + ".chisq",
-            "reduced chi^2"
-        )),
     _expComponentCtrl(getDependency<FitProfileControl>(others, ctrl.expName)),
     _devComponentCtrl(getDependency<FitProfileControl>(others, ctrl.devName)),
     _psfCtrl(getDependency<FitPsfControl>(others, ctrl.psfName))
@@ -158,12 +150,13 @@ void buildComponentModel(
     FitPsfModel const & psfModel,
     shapelet::ModelBuilder & builder,
     ModelInputHandler const & inputs,
-    ndarray::Array<double,1,1> const & output
+    ndarray::Array<double,1,1> const & output,
+    double weight = 1.0
 ) {
     typedef shapelet::MultiShapeletFunction MSF;
    MSF msf = component.asMultiShapelet(afw::geom::Point2D())
        .convolve(psfModel.asMultiShapelet());
-   msf.normalize();
+   msf.normalize(weight);
    for (
        MSF::ElementList::const_iterator i = msf.getElements().begin();
        i != msf.getElements().end();
@@ -171,9 +164,6 @@ void buildComponentModel(
    ) {
        builder.update(i->getEllipse().getCore());
        builder.addModelVector(i->getOrder(), i->getCoefficients(), output);
-   }
-   if (!inputs.getWeights().isEmpty()) {
-       output.asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
    }
 }
 
@@ -192,7 +182,13 @@ FitComboModel FitComboAlgorithm::apply(
     ndarray::Array<double,2,-2> matrix(matrixT.transpose());
     matrixT.deep() = 0.0;
     buildComponentModel(expComponent, psfModel, builder, inputs, matrixT[0]);
+    if (!inputs.getWeights().isEmpty()) {
+        matrixT[0].asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
+    }
     buildComponentModel(devComponent, psfModel, builder, inputs, matrixT[1]);
+    if (!inputs.getWeights().isEmpty()) {
+        matrixT[1].asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
+    }
     // We should really do constrained linear least squares to get the errors right, but this
     // produces the same result for the fluxes, and we don't have a constrained solver handy.
     afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
@@ -221,9 +217,6 @@ FitComboModel FitComboAlgorithm::apply(
                                   + devComponent.fluxErr * devComponent.fluxErr * model.devFrac);
 #endif
     }
-    model.chisq =
-        (matrix.asEigen() * lstsq.getSolution().asEigen() - inputs.getData().asEigen()).squaredNorm()
-        / (matrix.getSize<0>() - matrix.getSize<1>());
     return model;
 }
 
@@ -258,8 +251,70 @@ void FitComboAlgorithm::_apply(
     source.set(_fluxKeys.meas, model.flux);
     source.set(_fluxKeys.err, model.fluxErr);
     source.set(_fluxKeys.flag, false);
-    source.set(_chisqKey, model.chisq);
 
+    _fitPsfFactor(source, exposure, center, psfModel);
+}
+
+
+template <typename PixelT>
+void FitComboAlgorithm::_applyForced(
+    afw::table::SourceRecord & source,
+    afw::image::Exposure<PixelT> const & exposure,
+    afw::geom::Point2D const & center,
+    afw::table::SourceRecord const & reference,
+    afw::geom::AffineTransform const & refToMeas
+) const {
+    source.set(_fluxKeys.flag, true);
+    if (!exposure.hasPsf()) {
+        throw LSST_EXCEPT(
+            pex::exceptions::LogicErrorException,
+            "Cannot run FitComboAlgorithm without a PSF."
+        );
+    }
+    FitPsfModel psfModel(*_psfCtrl, source);
+    FitProfileModel expComponent(*_expComponentCtrl, source);
+    FitProfileModel devComponent(*_devComponentCtrl, source);
+    if (expComponent.fluxFlag || devComponent.fluxFlag) {
+        return; // Don't bother trying linear components if one of the inputs failed.
+    }
+    assert(lsst::utils::isfinite(expComponent.ellipse.getArea()));
+    assert(lsst::utils::isfinite(devComponent.ellipse.getArea()));
+    afw::table::SubSchema s = reference.getSchema()[getControl().name];
+    ModelInputHandler inputs = adjustInputs(
+        getControl(), psfModel, expComponent, devComponent, *source.getFootprint(),
+        exposure.getMaskedImage(), center
+    );
+    FitComboModel model(getControl());
+    model.devFrac = reference.get(s.find<float>("devfrac").key);
+    shapelet::ModelBuilder builder(inputs.getX(), inputs.getY());
+    ndarray::Array<double,1,1> matrix = ndarray::allocate(inputs.getSize());
+    matrix.deep() = 0.0;
+    buildComponentModel(expComponent, psfModel, builder, inputs, matrix, 1.0 - model.devFrac);
+    buildComponentModel(devComponent, psfModel, builder, inputs, matrix, model.devFrac);
+    if (!inputs.getWeights().isEmpty()) {
+        matrix.asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
+    }
+    // 1-d linear least squares...
+    double a = matrix.asEigen<Eigen::MatrixXpr>().squaredNorm();
+    double b = matrix.asEigen<Eigen::MatrixXpr>().dot(inputs.getData().asEigen<Eigen::MatrixXpr>());
+    model.flux = b / a;
+    model.fluxErr = std::sqrt(1.0 / a);
+
+    source.set(_devFracKey, model.devFrac);
+    source.set(_fluxKeys.meas, model.flux);
+    source.set(_fluxKeys.err, model.fluxErr);
+    source.set(_fluxKeys.flag, false);
+
+    _fitPsfFactor(source, exposure, center, psfModel);
+}
+
+template <typename PixelT>
+void FitComboAlgorithm::_fitPsfFactor(
+    afw::table::SourceRecord & source,
+    afw::image::Exposure<PixelT> const & exposure,
+    afw::geom::Point2D const & center,
+    FitPsfModel const & psfModel
+) const {
     source.set(_fluxCorrectionKeys.psfFactorFlag, true);
     PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = exposure.getPsf()->computeImage(center);
     ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
@@ -276,18 +331,6 @@ void FitComboAlgorithm::_apply(
     source.set(_fluxCorrectionKeys.psfFactor, psfProfileModel.flux);
     source.set(_fluxCorrectionKeys.psfFactorFlag, false); 
 }
-
-
-template <typename PixelT>
-void FitComboAlgorithm::_applyForced(
-    afw::table::SourceRecord & source,
-    afw::image::Exposure<PixelT> const & exposure,
-    afw::geom::Point2D const & center,
-    afw::table::SourceRecord const & reference,
-    afw::geom::AffineTransform const & refToMeas
-) const {
-}
-
 
 LSST_MEAS_ALGORITHM_PRIVATE_IMPLEMENTATION(FitComboAlgorithm);
 
