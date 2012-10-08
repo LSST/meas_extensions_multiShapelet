@@ -5,16 +5,28 @@
 #include "Eigen/Core"
 #include "Eigen/Geometry"
 
-namespace lsst { namespace meas { namespace extension { namespace multiShapelet { namespace optimizer {
+namespace lsst { namespace meas { namespace extensions { namespace multiShapelet { namespace optimizer {
+
+typedef Eigen::Array<bool,Eigen::Dynamic,1> ActiveSet;
 
 class BoxConstraint {
 public:
     
-    explicit BoxConstraint(int dim);
+    typedef Eigen::AlignedBox<double,Eigen::Dynamic> EigenBox;
+
+    explicit BoxConstraint(EigenBox const & b) : _box(b) {}
+
+    explicit BoxConstraint(int dim) : _box(dim) {}
+
+    EigenBox const & asEigen() const { return _box; }
 
     void set(int n, double min, double max);
 
-    BoxConstraint intersect(BoxConstraint const & other) const;
+    /**
+     *  Return a bool array with true values in dimensions where x is on the constraint (within epsilon).
+     *  The vector will be modified such that constrained dimensions are exactly on the constraint.
+     */
+    ActiveSet computeActiveSet(Eigen::VectorXd & x) const;
 
     /**
      *  Project a point onto the constraint.
@@ -28,13 +40,9 @@ public:
 
 private:
 
-    typedef Eigen::AlignedBox<double,Eigen::Dynamic> Box;
-
-    explicit BoxConstraint(Box const & b) : _box(b) {}
-
-    Box _box;
+    EigenBox _box;
 };
 
-}}}}} // namespace lsst::meas::extension::multiShapelet::optimizer
+}}}}} // namespace lsst::meas::extensions::multiShapelet::optimizer
 
 #endif // !LSST_MEAS_EXT_MULTISHAPELET_OPT_BoxConstraint_h_INCLUDED
