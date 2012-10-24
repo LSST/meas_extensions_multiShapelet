@@ -10,6 +10,8 @@
 #include "lsst/afw/geom/ellipses.h"
 #include "lsst/meas/extensions/multiShapelet/EllipseSquaredNorm.h"
 #include "Eigen/Core"
+#include "Eigen/Eigenvalues"
+#include "Eigen/Geometry"
 #include <vector>
 
 namespace el = lsst::afw::geom::ellipses;
@@ -162,7 +164,7 @@ BOOST_AUTO_TEST_CASE(dCoords) {
     x[0] = 0.0; // want to make sure we don't divide by zero anywhere.
     y[0] = 0.0;
     for (EllipseIter i = ellipses.begin(); i != ellipses.end(); ++i) {
-        el::BaseCore::Jacobian jacobian = esn.update(**i, true);
+        esn.update(**i, true);
         CoordFunc func = { esn };
         for (int j = 0; j < n; ++j) {
             double rx=0., ry=0., z=0.;
