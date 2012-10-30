@@ -2,6 +2,8 @@
 #ifndef LSST_OPTIMIZER_NLopt_h_INCLUDED
 #define LSST_OPTIMIZER_NLopt_h_INCLUDED
 
+#include <vector>
+
 #include "boost/noncopyable.hpp"
 #include "nlopt.hp"
 
@@ -10,17 +12,29 @@ namespace lsst { namespace optimizer {
 class Objective {
 public:
 
+    int getParameterSize() const { return _parameterSize; }
+
     virtual double evaluate(Eigen::VectorXd const & x) const = 0;
     virtual double evaluate(Eigen::VectorXd const & x, Eigen::VectorXd & gradient) const = 0;
 
     virtual ~Objective() {}
 
+protected:
+
+    explicit Objective(int parameterSize) : _parameterSize(parameterSize) {}
+
+    Objective(Objective const & other) : _parameterSize(other._parameterSize) {}
+
+private:
+    void operator=(Objective const & other); // intentionally undefined
+    int _parameterSize;
 };
 
 class Constraint {
 public:
 
-    int getSize() const { return _size; }
+    int getParameterSize() const { return _parameterSize; }
+    int getConstraintSize() const { return _constraintSize; }
 
     virtual void evaluate(Eigen::VectorXd const & x, Eigen::VectorXd & c) const = 0;
     virtual void evaluate(Eigen::VectorXd const & x, Eigen::VectorXd & c, Eigen::MatrixXd & gc) const = 0;
@@ -29,14 +43,19 @@ public:
 
 protected:
 
-    explicit Constraint(int size) : _size(size) {}
+    explicit Constraint(int parameterSize, int constraintSize) :
+        _parameterSize(parameterSize), _constraintSize(constraintSize)
+    {}
 
-    Constraint(Constraint const & other) : _size(other._size) {}
-
-    void operator=(Constraint const & other) { _size = other._size; }
+    Constraint(Constraint const & other) :
+        _parameterSize(other._parameterSize), _constraintSize(other._constraintSize)
+    {}
 
 private:
-    int _size;
+    void operator=(Constraint const & other);
+
+    int _parameterSize;
+    int _constraintSize;
 };
 
 class NLopt {
@@ -51,30 +70,37 @@ public:
 
     NLopt & operator=(NLopt const & other);
 
-    ResultEnum optimize(Eigen::VectorXd const & x);
+    void swap(NLopt & other);
 
-    void setObjective(CONST_PTR(Objective) const & obj);
+    ~NLopt();
 
-    void setBounds(Eigen::AlignedBox2d const & box);
-    void setBounds(Eigen::VectorXd const & lower, Eigen::VectorXd const & upper);
-    void setBounds(double lower, Eigen::VectorXd const & upper);
-    void setBounds(Eigen::VectorXd const & lower, double upper);
-    void setLowerBounds();
-    void setUpperBounds();
+    AlgorithmEnum getAlgorithm() const;
+
+    int getParameterSize() const;
+
+    std::pair<ResultEnum,double> optimize(Eigen::VectorXd & x);
+
+    void setObjective(CONST_PTR(Objective) const & func, bool maximize=false);
+
+    void setBounds(Eigen::AlignedBoxXd const & box);
+    void unsetLowerBounds();
+    void unsetUpperBounds();
     void setLowerBounds(double lower);
     void setUpperBounds(double upper);
     void setLowerBounds(Eigen::VectorXd const & lower);
     void setUpperBounds(Eigen::VectorXd const & upper);
 
-    void setInequalityConstraint(CONST_PTR(Constraint) const & iqc);
-    void setEqualityConstraint(CONST_PTR(Constraint) const & eqc);
-
-    ~NLopt();
+    void addInequalityConstraint(CONST_PTR(Objective) const & func, double tolerance);
+    void addEqualityConstraint(CONST_PTR(Objective) const & func, double tolerance);
+    void removeInequalityConstraints();
+    void removeEqualityConstraints();
 
 private:
+    typedef std::vector< CONST_PTR(Objective)> > ConstraintVector;
+
     CONST_PTR(Objective) _obj;
-    CONST_PTR(Constraint) _iqc;
-    CONST_PTR(Constraint) _eqc;
+    ConstraintVector _iqc;
+    ConstraintVector _eqc;
     ::nlopt_opt _opt;
 };
 
