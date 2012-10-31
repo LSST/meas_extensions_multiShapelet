@@ -1,3 +1,5 @@
 # -*- python -*-
-from lsst.sconsUtils import scripts
+from lsst.sconsUtils import scripts, env
+if env.dependencies["nlopt"]:
+    env.Append(CPPDEFINES="HAVE_NLOPT")
 scripts.BasicSConscript.lib()

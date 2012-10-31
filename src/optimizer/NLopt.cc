@@ -1,3 +1,4 @@
+#ifdef HAVE_NLOPT
 #include "lsst/optimizer/NLopt.h"
 
 namespace lsst { namespace optimizer {
@@ -133,3 +134,4 @@ void NLopt::removeEqualityConstraints() {
 }
 
 }} // lsst::optimizer
+#endif // HAVE_NLOPT
