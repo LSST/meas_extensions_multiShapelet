@@ -4,8 +4,13 @@
 
 #include <vector>
 
+#include "Eigen/Core"
+#include "Eigen/Geometry"
 #include "boost/noncopyable.hpp"
-#include "nlopt.hp"
+#include "nlopt.h"
+
+#include "lsst/base.h"
+#include "lsst/pex/exceptions.h"
 
 namespace lsst { namespace optimizer {
 
@@ -83,12 +88,13 @@ public:
     void setObjective(CONST_PTR(Objective) const & func, bool maximize=false);
 
     void setBounds(Eigen::AlignedBoxXd const & box);
-    void unsetLowerBounds();
-    void unsetUpperBounds();
     void setLowerBounds(double lower);
     void setUpperBounds(double upper);
     void setLowerBounds(Eigen::VectorXd const & lower);
     void setUpperBounds(Eigen::VectorXd const & upper);
+    void unsetBounds();
+    void unsetLowerBounds();
+    void unsetUpperBounds();
 
     void addInequalityConstraint(CONST_PTR(Objective) const & func, double tolerance);
     void addEqualityConstraint(CONST_PTR(Objective) const & func, double tolerance);
@@ -96,7 +102,7 @@ public:
     void removeEqualityConstraints();
 
 private:
-    typedef std::vector< CONST_PTR(Objective)> > ConstraintVector;
+    typedef std::vector<CONST_PTR(Objective)> ConstraintVector;
 
     CONST_PTR(Objective) _obj;
     ConstraintVector _iqc;
