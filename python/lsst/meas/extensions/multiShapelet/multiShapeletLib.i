@@ -17,6 +17,7 @@ Measurement algorithms using galaxy models built from multi-scale shapelets.
 #include "lsst/meas/algorithms.h"
 #include "lsst/shapelet.h"
 #include "lsst/meas/extensions/multiShapelet.h"
+#include "lsst/afw/geom/ellipses/PyPixelRegion.h"
 %}
 
 %include "lsst/p_lsstSwig.i"
