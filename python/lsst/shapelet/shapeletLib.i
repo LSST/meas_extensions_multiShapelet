@@ -32,12 +32,7 @@ Python interface to lsst::shapelet classes and functions
 %module(package="lsst.shapelet", docstring=shapeletLib_DOCSTRING) shapeletLib
 
 %{
-#   include "lsst/afw/geom.h"
-#   include "lsst/afw/detection.h"
-#   include "lsst/afw/image.h"
-#   include "lsst/afw/cameraGeom.h"
-#   include "lsst/pex/logging.h"
-#   include "lsst/shapelet.h"
+#include "lsst/shapelet.h"
 %}
 
 %include "lsst/p_lsstSwig.i"
@@ -74,9 +69,9 @@ Python interface to lsst::shapelet classes and functions
 
 %template(MultiShapeletElementList) std::list<lsst::shapelet::ShapeletFunction>;
 
-%import "lsst/afw/geom/geomLib.i"
-%import "lsst/afw/geom/ellipses/ellipsesLib.i"
-%import "lsst/afw/image/imageLib.i"
+%import "lsst/afw/geom/geom_fwd.i"
+%import "lsst/afw/geom/ellipses/Ellipse.i"
+%import "lsst/afw/image/Image.i"
 
 %lsst_exceptions();
 
