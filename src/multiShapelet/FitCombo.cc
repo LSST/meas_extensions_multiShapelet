@@ -40,7 +40,7 @@ PTR(algorithms::AlgorithmControl) FitComboControl::_clone() const {
 PTR(algorithms::Algorithm) FitComboControl::_makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmMap const & others
 ) const {
     return boost::make_shared<FitComboAlgorithm>(*this, boost::ref(schema), others);
 }
@@ -73,7 +73,7 @@ FitComboModel & FitComboModel::operator=(FitComboModel const & other) {
 FitComboAlgorithm::FitComboAlgorithm(
     FitComboControl const & ctrl,
     afw::table::Schema & schema,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmMap const & others
 ) :
     algorithms::Algorithm(ctrl),
     _fluxKeys(
@@ -95,14 +95,14 @@ FitComboAlgorithm::FitComboAlgorithm(
             "reduced chi^2"
         ))
 {
-    algorithms::AlgorithmControlMap::const_iterator i = others.find(ctrl.psfName);
+    algorithms::AlgorithmMap::const_iterator i = others.find(ctrl.psfName);
     if (i == others.end()) {
         throw LSST_EXCEPT(
             pex::exceptions::LogicErrorException,
             (boost::format("FitPsf with name '%s' not found; needed by FitCombo.") % ctrl.psfName).str()
         );
     }
-    _psfCtrl = boost::dynamic_pointer_cast<FitPsfControl const>(i->second);
+    _psfCtrl = boost::dynamic_pointer_cast<FitPsfControl const>(i->second->getControl().clone());
     if (!_psfCtrl) {
         throw LSST_EXCEPT(
             pex::exceptions::LogicErrorException,
@@ -114,7 +114,7 @@ FitComboAlgorithm::FitComboAlgorithm(
         nameIter != ctrl.componentNames.end();
         ++nameIter
     ) {
-        algorithms::AlgorithmControlMap::const_iterator i = others.find(*nameIter);
+        algorithms::AlgorithmMap::const_iterator i = others.find(*nameIter);
         if (i == others.end()) {
             throw LSST_EXCEPT(
                 pex::exceptions::LogicErrorException,
@@ -122,7 +122,9 @@ FitComboAlgorithm::FitComboAlgorithm(
                  % (*nameIter)).str()
             );
         }
-        _componentCtrl.push_back(boost::dynamic_pointer_cast<FitProfileControl const>(i->second));
+        _componentCtrl.push_back(
+            boost::dynamic_pointer_cast<FitProfileControl const>(i->second->getControl().clone())
+        );
         if (!_componentCtrl.back()) {
             throw LSST_EXCEPT(
                 pex::exceptions::LogicErrorException,

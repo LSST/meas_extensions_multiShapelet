@@ -41,7 +41,7 @@ PTR(algorithms::AlgorithmControl) FitProfileControl::_clone() const {
 PTR(algorithms::Algorithm) FitProfileControl::_makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmMap const & others
 ) const {
     return boost::make_shared<FitProfileAlgorithm>(*this, boost::ref(schema), others);
 }
@@ -133,7 +133,7 @@ shapelet::MultiShapeletFunction FitProfileModel::asMultiShapelet(
 FitProfileAlgorithm::FitProfileAlgorithm(
     FitProfileControl const & ctrl,
     afw::table::Schema & schema,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmMap const & others
 ) :
     algorithms::Algorithm(ctrl),
     _fluxKeys(
@@ -186,14 +186,14 @@ FitProfileAlgorithm::FitProfileAlgorithm(
         )),
     _psfCtrl()
 {
-    algorithms::AlgorithmControlMap::const_iterator i = others.find(ctrl.psfName);
+    algorithms::AlgorithmMap::const_iterator i = others.find(ctrl.psfName);
     if (i == others.end()) {
         throw LSST_EXCEPT(
             pex::exceptions::LogicErrorException,
             (boost::format("FitPsf with name '%s' not found; needed by FitProfile.") % ctrl.psfName).str()
         );
     }
-    _psfCtrl = boost::dynamic_pointer_cast<FitPsfControl const>(i->second);
+    _psfCtrl = boost::dynamic_pointer_cast<FitPsfControl const>(i->second->getControl().clone());
     if (!_psfCtrl) {
         throw LSST_EXCEPT(
             pex::exceptions::LogicErrorException,

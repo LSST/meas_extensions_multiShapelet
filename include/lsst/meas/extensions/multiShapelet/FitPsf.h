@@ -58,7 +58,7 @@ public:
     PTR(FitPsfAlgorithm) makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)(),
-        algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
+        algorithms::AlgorithmMap const & others = algorithms::AlgorithmMap()
     ) const;
     
     MultiGaussian getMultiGaussian() const;
@@ -238,7 +238,7 @@ private:
 inline PTR(FitPsfAlgorithm) FitPsfControl::makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmMap const & others
 ) const {
     return boost::static_pointer_cast<FitPsfAlgorithm>(_makeAlgorithm(schema, metadata, others));
 }
