@@ -50,7 +50,7 @@ public:
     PTR(FitComboAlgorithm) makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata = PTR(daf::base::PropertyList)(),
-        algorithms::AlgorithmControlMap const & others = algorithms::AlgorithmControlMap()
+        algorithms::AlgorithmMap const & others = algorithms::AlgorithmMap()
     ) const;
 
     FitComboControl() :
@@ -71,7 +71,7 @@ private:
     virtual PTR(algorithms::Algorithm) _makeAlgorithm(
         afw::table::Schema & schema,
         PTR(daf::base::PropertyList) const & metadata,
-        algorithms::AlgorithmControlMap const & other
+        algorithms::AlgorithmMap const & other
     ) const;
 };
 
@@ -110,7 +110,7 @@ public:
     FitComboAlgorithm(
         FitComboControl const & ctrl,
         afw::table::Schema & schema,
-        algorithms::AlgorithmControlMap const & others
+        algorithms::AlgorithmMap const & others
     );
 
     /// @brief Return the control object
@@ -162,7 +162,7 @@ private:
 inline PTR(FitComboAlgorithm) FitComboControl::makeAlgorithm(
     afw::table::Schema & schema,
     PTR(daf::base::PropertyList) const & metadata,
-    algorithms::AlgorithmControlMap const & others
+    algorithms::AlgorithmMap const & others
 ) const {
     return boost::static_pointer_cast<FitComboAlgorithm>(_makeAlgorithm(schema, metadata, others));
 }
