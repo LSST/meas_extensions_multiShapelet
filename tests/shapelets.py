@@ -45,13 +45,14 @@ import lsst.afw.math
 
 try:
     import scipy.ndimage
+    import scipy.special
 except ImportError:
     scipy = None
 
 import numpy
 
 numpy.random.seed(5)
-numpy.set_printoptions(linewidth=120)
+numpy.set_printoptions(linewidth=110, suppress=True, precision=5)
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -301,8 +302,108 @@ class ModelBuilderTestCase(unittest.TestCase, ShapeletTestMixin):
             z0[n] = ev(x, y)
             n += 1
         self.assertClose(z1, z0)
-            
-            
+
+class HermiteTransformMatrixTestCase(unittest.TestCase,ShapeletTestMixin):
+
+    def setUp(self):
+        self.order = 4
+        self.size = lsst.shapelet.computeSize(self.order)
+        self.htm = lsst.shapelet.HermiteTransformMatrix(self.order)
+
+    @staticmethod
+    def ht(n):
+        """return a scipy poly1d for the nth 'alternate' Hermite polynomial (i.e. Hermite polynomial
+        with shapeley normalization)"""
+        return (scipy.poly1d([(2**n * numpy.pi**0.5 * scipy.special.gamma(n+1))**(-0.5)])
+                * scipy.special.hermite(n))
+
+    def testCoefficientMatrices(self):
+        coeff = self.htm.getCoefficientMatrix()
+        coeffInv = self.htm.getInverseCoefficientMatrix()
+        self.assertClose(numpy.identity(self.order+1), numpy.dot(coeff, coeffInv))
+        # Both matrices should be lower-triangular
+        for i in range(0, self.order+1):
+            for j in range(i+1, self.order+1):
+                self.assertEqual(coeff[i,j], 0.0)
+                self.assertEqual(coeffInv[i,j], 0.0)
+        # test coefficient matrix values against scipy Hermite polynomials
+        if scipy is None:
+            print "Skipping Hermite polynomial tests that require SciPy"
+            return
+        for n in range(0, self.order+1):
+            poly = self.ht(n)
+            self.assertClose(coeff[n,:n+1], poly.c[::-1])
+
+    def testTransformMatrix(self):
+        s = lsst.afw.geom.LinearTransform.makeScaling(2.0, 1.5)
+        r = lsst.afw.geom.LinearTransform.makeRotation(0.30)
+        transforms = [s, r, s*r*s]
+        testPoints = numpy.random.randn(10, 2)
+        for transform in transforms:
+            m = self.htm.compute(transform)
+            for testPoint in testPoints:
+                assert(testPoint.size == 2)
+                origPoint = lsst.afw.geom.Point2D(testPoint[0], testPoint[1])
+                transPoint = transform(origPoint)
+                for i, inx, iny in lsst.shapelet.HermiteIndexGenerator(self.order):
+                    v1 = self.ht(inx)(transPoint.getX()) * self.ht(iny)(transPoint.getY())
+                    v2 = 0.0
+                    for j, jnx, jny in lsst.shapelet.HermiteIndexGenerator(self.order):
+                        v2 += m[j,i] * self.ht(jnx)(origPoint.getX()) * self.ht(jny)(origPoint.getY())
+                    self.assertClose(v1, v2)
+
+class ProjectionTestCase(unittest.TestCase,ShapeletTestMixin):
+
+    def setUp(self):
+        self.ghp = lsst.shapelet.GaussHermiteProjection(16)
+
+    def testRotation(self):
+        order = 4
+        size = lsst.shapelet.computeSize(order)
+        nPoints = 100
+        unitCircle = lsst.afw.geom.ellipses.Quadrupole(1.0, 1.0, 0.0)
+        # This matrix should represent a pure rotation in shapelet space, which can be done exactly.
+        inputTransform = lsst.afw.geom.LinearTransform.makeRotation(0.0)
+        outputTransform = lsst.afw.geom.LinearTransform.makeRotation(numpy.pi/3)
+        m = self.ghp.compute(inputTransform, order, outputTransform, order)
+        # If we apply a rotation by numpy.pi/3 six times, we should get back where we started with.
+        self.assertClose(numpy.linalg.matrix_power(m, 6), numpy.identity(size))
+        # Now we test that we get the same result (up to round-off error) for a bunch of test points.
+        inputTestPoints = numpy.random.randn(2, nPoints)
+        outputTestPoints = numpy.dot(outputTransform.getMatrix(), inputTestPoints)
+        inputBuilder = lsst.shapelet.ModelBuilder(inputTestPoints[0,:], inputTestPoints[1,:])
+        outputBuilder = lsst.shapelet.ModelBuilder(outputTestPoints[0,:], outputTestPoints[1,:])
+        inputBuilder.update(unitCircle)
+        outputBuilder.update(unitCircle)
+        inputBasis= numpy.zeros((size, nPoints), dtype=float).transpose()
+        outputBasis = numpy.zeros((size, nPoints), dtype=float).transpose()
+        inputBuilder.addModelMatrix(order, inputBasis)
+        outputBuilder.addModelMatrix(order, outputBasis)
+        self.assertClose(numpy.dot(m.transpose(), outputBasis.transpose()), inputBasis.transpose())
+
+    def testPerturbation(self):
+        inputEllipse = lsst.afw.geom.ellipses.Quadrupole(2.0, 2.0, 0.0)
+        outputEllipse = lsst.afw.geom.ellipses.Quadrupole(2.01, 2.0, 0.02)
+        inputShapelet = lsst.shapelet.ShapeletFunction(2, lsst.shapelet.HERMITE,
+                                                       lsst.afw.geom.ellipses.Ellipse(inputEllipse))
+        outputShapelet = lsst.shapelet.ShapeletFunction(8, lsst.shapelet.HERMITE,
+                                                        lsst.afw.geom.ellipses.Ellipse(outputEllipse))
+        m = self.ghp.compute(inputEllipse, inputShapelet.getOrder(),
+                             outputEllipse, outputShapelet.getOrder())
+        x = numpy.random.randn(50)
+        y = numpy.random.randn(50)
+        for i, nx, ny in lsst.shapelet.HermiteIndexGenerator(2):
+            inputShapelet.getCoefficients()[:] = 0.0
+            inputShapelet.getCoefficients()[i] = 1.0
+            outputShapelet.getCoefficients()[:] = numpy.dot(m, inputShapelet.getCoefficients())
+            inputEv = inputShapelet.evaluate()
+            outputEv = outputShapelet.evaluate()
+            inputZ = numpy.array([inputEv(px,py) for px,py in zip(x,y)])
+            outputZ = numpy.array([outputEv(px,py) for px,py in zip(x,y)])
+            # tolerances here aren't rigorous; it's mostly just a regression/sanity test, with the real
+            # check in a visual inspection of examples/shapeletProject.py
+            self.assertClose(inputZ, outputZ, atol=5E-3, rtol=5E-3)
+        
 
 #-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 
@@ -315,6 +416,8 @@ def suite():
     suites += unittest.makeSuite(ShapeletTestCase)
     suites += unittest.makeSuite(MultiShapeletTestCase)
     suites += unittest.makeSuite(ModelBuilderTestCase)
+    suites += unittest.makeSuite(HermiteTransformMatrixTestCase)
+    suites += unittest.makeSuite(ProjectionTestCase)
     suites += unittest.makeSuite(utilsTests.MemoryTestCase)
     return unittest.TestSuite(suites)
 

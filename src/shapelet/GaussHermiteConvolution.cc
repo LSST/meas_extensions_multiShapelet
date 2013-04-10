@@ -22,7 +22,7 @@
  */
 
 #include "lsst/shapelet/ShapeletFunction.h"
-#include "lsst/shapelet/HermiteConvolution.h"
+#include "lsst/shapelet/GaussHermiteConvolution.h"
 #include "lsst/afw/geom/Angle.h"
 #include "ndarray/eigen.h"
 
@@ -45,22 +45,6 @@ private:
 
     ndarray::Vector<int,3> _orders;
     ndarray::Array<double,3,3> _array;
-};
-
-class Binomial {
-public:
-
-    Binomial(int const n, double a, double b);
-
-    void reset(double a, double b);
-
-    double const operator[](int const k) const { return _workspace[k] * _coefficients[k]; }
-
-    int const getOrder() const { return _coefficients.size()-1; }
-
-private:
-    Eigen::VectorXd _coefficients;
-    Eigen::VectorXd _workspace;
 };
 
 TripleProductIntegral::TripleProductIntegral(int order1, int order2, int order3) :
@@ -191,35 +175,9 @@ TripleProductIntegral::make1d(int order1, int order2, int order3) {
     return array;
 }
 
-Binomial::Binomial(int const n, double a, double b) : _coefficients(n+1), _workspace(n+1) {
-    _coefficients[0] = _coefficients[n] = 1.0;
-    int const mid = n/2;
-    for (int k = 1; k <= mid; ++k) {
-        _coefficients[k] = _coefficients[k-1] * (n - k + 1.0) / k;
-    }
-    for (int k = mid+1; k < n; ++k) {
-        _coefficients[k] = _coefficients[n-k];
-    }
-    reset(a, b);
-}
-
-void Binomial::reset(double a, double b) {
-    int const n = getOrder();
-    double v = 1;
-    for (int k = 0; k <= n; ++k) {
-        _workspace[k] = v;
-        v *= b;
-    }
-    v = 1;
-    for (int nk = n; nk >= 0; --nk) {
-        _workspace[nk] *= v;
-        v *= a;
-    }
-}
-
 } // anonymous
 
-class HermiteConvolution::Impl {
+class GaussHermiteConvolution::Impl {
 public:
 
     Impl(int colOrder, ShapeletFunction const & psf);
@@ -230,49 +188,27 @@ public:
 
     int getRowOrder() const { return _rowOrder; }
 
-    Eigen::MatrixXd computeHermiteTransformMatrix(int order, Eigen::Matrix2d const & transform) const;
-
 private:
     int _rowOrder;
     int _colOrder;
     ShapeletFunction _psf;
     ndarray::Array<double,2,2> _result;
     TripleProductIntegral _tpi;
-    Eigen::MatrixXd _monomialFwd;
-    Eigen::MatrixXd _monomialInv;
+    HermiteTransformMatrix _htm;
 };
 
-HermiteConvolution::Impl::Impl(
+GaussHermiteConvolution::Impl::Impl(
     int colOrder, ShapeletFunction const & psf
 ) :
     _rowOrder(colOrder + psf.getOrder()), _colOrder(colOrder), _psf(psf),
     _result(ndarray::allocate(computeSize(_rowOrder), computeSize(_colOrder))),
     _tpi(psf.getOrder(), _rowOrder, _colOrder),
-    _monomialFwd(
-        Eigen::MatrixXd::Zero(
-            computeSize(_rowOrder),
-            computeSize(_rowOrder)
-        )
-    ),
-    _monomialInv(Eigen::MatrixXd::Identity(_monomialFwd.rows(), _monomialFwd.cols()))
+    _htm(_rowOrder)
 {
     _psf.changeBasisType(HERMITE);
-    _monomialFwd(0, 0) = BASIS_NORMALIZATION;
-    if (_rowOrder >= 1) {
-        _monomialFwd(1, 1) = _monomialFwd(0, 0) * M_SQRT2;
-    }
-    for (int n = 2; n <= _rowOrder; ++n) {
-        _monomialFwd(n, 0) = -_monomialFwd(n-2, 0) * std::sqrt((n - 1.0) / n);
-        for (int m = (n % 2) ? 1:2; m <= n; m += 2) {
-            _monomialFwd(n, m)
-                = _monomialFwd(n-1, m-1) * std::sqrt(2.0 / n)
-                - _monomialFwd(n-2, m) * std::sqrt((n - 1.0) / n);
-        }
-    }
-    _monomialFwd.triangularView<Eigen::Lower>().solveInPlace(_monomialInv);
 }
 
-ndarray::Array<double const,2,2> HermiteConvolution::Impl::evaluate(
+ndarray::Array<double const,2,2> GaussHermiteConvolution::Impl::evaluate(
     afw::geom::ellipses::Ellipse & ellipse
 ) const {
     ndarray::EigenView<double,2,2> result(_result);
@@ -287,8 +223,8 @@ ndarray::Array<double const,2,2> HermiteConvolution::Impl::evaluate(
 
     int const psfOrder = _psf.getOrder();
 
-    Eigen::MatrixXd psfMat = computeHermiteTransformMatrix(psfOrder, psfArg);
-    Eigen::MatrixXd modelMat = computeHermiteTransformMatrix(_colOrder, modelArg);
+    Eigen::MatrixXd psfMat = _htm.compute(psfArg, psfOrder);
+    Eigen::MatrixXd modelMat = _htm.compute(modelArg, _colOrder);
 
     // [kq]_m = \sum_m i^{n+m} [psfMat]_{m,n} [psf]_n
     // kq is zero unless {n+m} is even
@@ -309,7 +245,6 @@ ndarray::Array<double const,2,2> HermiteConvolution::Impl::evaluate(
     {
         ndarray::Array<double,3,3> b = _tpi.asArray();
         ndarray::Vector<int,3> n, o, x;
-        ndarray::Vector<int,3> strides = b.getStrides();
         x[0] = 0;
         for (n[1] = o[1] = 0; n[1] <= _rowOrder; o[1] += ++n[1]) {
             for (n[2] = o[2] = 0; n[2] <= _colOrder; o[2] += ++n[2]) {
@@ -349,54 +284,22 @@ ndarray::Array<double const,2,2> HermiteConvolution::Impl::evaluate(
     return _result;
 }
 
-Eigen::MatrixXd HermiteConvolution::Impl::computeHermiteTransformMatrix(
-    int order, Eigen::Matrix2d const & transform
-) const {
-    int const size = computeSize(order);
-    Eigen::MatrixXd result = Eigen::MatrixXd::Zero(size, size);
-    for (int jn=0, joff=0; jn <= order; joff += (++jn)) {
-        for (int kn=jn, koff=joff; kn <= order; (koff += (++kn)) += (++kn)) {
-            for (int jx=0,jy=jn; jx <= jn; ++jx,--jy) {
-                for (int kx=0,ky=kn; kx <= kn; ++kx,--ky) {
-                    double & element = result(joff+jx, koff+kx);
-                    for (int m = 0; m <= order; ++m) {
-                        int const order_minus_m = order - m;
-                        Binomial binomial_m(m, transform(0,0), transform(0,1));
-                        for (int p = 0; p <= m; ++p) {
-                            for (int n = 0; n <= order_minus_m; ++n) {
-                                Binomial binomial_n(n, transform(1,0), transform(1,1));
-                                for (int q = 0; q <= n; ++q) {
-                                    element +=
-                                        _monomialFwd(kx, m) * _monomialFwd(ky, n) *
-                                        _monomialInv(m+n-p-q, jx) * _monomialInv(p+q, jy) *
-                                        binomial_m[p] * binomial_n[q];
-                                } // q
-                            } // n
-                        } // p
-                    } // m
-                } // kx,ky
-            } // jx,jy
-        } // kn
-    } // jn
-    return result;
-}
+int GaussHermiteConvolution::getRowOrder() const { return _impl->getRowOrder(); }
 
-int HermiteConvolution::getRowOrder() const { return _impl->getRowOrder(); }
-
-int HermiteConvolution::getColOrder() const { return _impl->getColOrder(); }
+int GaussHermiteConvolution::getColOrder() const { return _impl->getColOrder(); }
 
 ndarray::Array<double const,2,2>
-HermiteConvolution::evaluate(
+GaussHermiteConvolution::evaluate(
     afw::geom::ellipses::Ellipse & ellipse
 ) const {
     return _impl->evaluate(ellipse);
 }
 
-HermiteConvolution::HermiteConvolution(
+GaussHermiteConvolution::GaussHermiteConvolution(
     int colOrder,
     ShapeletFunction const & psf
 ) : _impl(new Impl(colOrder, psf)) {}
 
-HermiteConvolution::~HermiteConvolution() {}
+GaussHermiteConvolution::~GaussHermiteConvolution() {}
 
 }} // namespace lsst::shapelet
