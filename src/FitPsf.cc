@@ -252,7 +252,7 @@ void FitPsfAlgorithm::fitShapeletTerms(
     int outerCoeffs = shapelet::computeSize(ctrl.outerOrder);
     ndarray::Array<double,2,-2> matrix = ndarray::allocate(inputs.getSize(), innerCoeffs + outerCoeffs);
     matrix.asEigen().setZero();
-    shapelet::ModelBuilder builder(inputs.getX(), inputs.getY());
+    shapelet::ModelBuilder<double> builder(inputs.getX(), inputs.getY());
     builder.update(model.ellipse);
     builder.addModelMatrix(ctrl.innerOrder, matrix[ndarray::view()(0, innerCoeffs)]);
     model.ellipse.scale(ctrl.radiusRatio);
