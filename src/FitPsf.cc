@@ -223,7 +223,7 @@ PTR(MultiGaussianObjective) FitPsfAlgorithm::makeObjective(
     ModelInputHandler const & inputs
 ) {
     return boost::make_shared<MultiGaussianObjective>(
-        inputs, ctrl.getMultiGaussian(), ctrl.minRadius, ctrl.minAxisRatio
+        inputs, ctrl.getMultiGaussian(), ctrl.minRadius, ctrl.minAxisRatio, ctrl.useApproximateExp
     );
 }
 
