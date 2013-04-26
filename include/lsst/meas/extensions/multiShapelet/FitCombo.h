@@ -58,7 +58,7 @@ public:
         algorithms::AlgorithmControl("multishapelet.combo", 2.6),
         componentNames(), psfName("multishapelet.psf"),
         usePixelWeights(false), badMaskPlanes(), growFootprint(5), radiusInputFactor(4.0),
-        useApproximateExp(true)
+        useApproximateExp(false)
     {
         componentNames.push_back("multishapelet.exp");
         componentNames.push_back("multishapelet.dev");

@@ -74,7 +74,7 @@ public:
         minRadius(0.0001), minAxisRatio(0.0001),
         deconvolveShape(true), minInitialRadius(0.5),
         usePixelWeights(false), badMaskPlanes(), maxBadPixelFraction(0.1),
-        growFootprint(5), radiusInputFactor(4.0), useApproximateExp(true)
+        growFootprint(5), radiusInputFactor(4.0), useApproximateExp(false)
     {
         badMaskPlanes.push_back("BAD");
         badMaskPlanes.push_back("SAT");
