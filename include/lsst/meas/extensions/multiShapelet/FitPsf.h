@@ -119,8 +119,8 @@ struct FitPsfModel {
         ndarray::Array<double const,1,1> const & parameters
     );
 
-    /// @brief Construct by extracting saved values from a SourceRecord.
-    FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord const & source);
+    /// @brief Construct by extracting saved values from a Record.
+    FitPsfModel(FitPsfControl const & ctrl, afw::table::BaseRecord const & source);
 
     /// @brief Deep copy constructor.
     FitPsfModel(FitPsfModel const & other);
@@ -212,6 +212,20 @@ public:
         afw::detection::Psf const & psf,
         afw::geom::Point2D const & center
     );
+
+    /**
+     *  @brief Fit a PSF object evaluated at a point, returning a FitPsfModel
+     *         and saving the to the given record.
+     *
+     *  @param[in] record         Record in which to save results
+     *  @param[in] psf            PSF object
+     *  @param[in] center         Point at which to evaluate the PSF
+     */
+    FitPsfModel apply(
+        afw::table::BaseRecord & record,
+        afw::detection::Psf const & psf,
+        afw::geom::Point2D const & center
+    ) const;
 
 private:
 

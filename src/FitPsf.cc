@@ -74,7 +74,7 @@ FitPsfModel::FitPsfModel(
     outer.asEigen() *= amplitude;
 }
 
-FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::SourceRecord const & source) :
+FitPsfModel::FitPsfModel(FitPsfControl const & ctrl, afw::table::BaseRecord const & source) :
     inner(ndarray::allocate(shapelet::computeSize(ctrl.innerOrder))),
     outer(ndarray::allocate(shapelet::computeSize(ctrl.outerOrder))),
     ellipse(),
@@ -307,6 +307,27 @@ FitPsfModel FitPsfAlgorithm::apply(
     return apply(ctrl, inputs);
 }
 
+FitPsfModel FitPsfAlgorithm::apply(
+    afw::table::BaseRecord & record,
+    afw::detection::Psf const & psf,
+    afw::geom::Point2D const & center
+) const {
+    record.set(_flagKey, true);
+    FitPsfModel model = apply(getControl(), psf, center);
+    record[_innerKey] = model.inner;
+    record[_outerKey] = model.outer;
+    record.set(_ellipseKey, model.ellipse);
+    record.set(_chisqKey, model.chisq);
+    record.set(_integralKey, model.asMultiShapelet().evaluate().integrate());
+    record.set(_flagMaxIterKey, model.failedMaxIter);
+    record.set(_flagTinyStepKey, model.failedTinyStep);
+    record.set(_flagMinRadiusKey, model.failedMinRadius);
+    record.set(_flagMinAxisRatioKey, model.failedMinAxisRatio);
+    record.set(_flagKey, model.failedMaxIter || model.failedTinyStep
+               || model.failedMinAxisRatio || model.failedMinRadius);
+    return model;
+}
+
 template <typename PixelT>
 void FitPsfAlgorithm::_apply(
     afw::table::SourceRecord & source,
@@ -320,18 +341,7 @@ void FitPsfAlgorithm::_apply(
             "Cannot run FitPsfAlgorithm without a PSF."
         );
     }
-    FitPsfModel model = apply(getControl(), *exposure.getPsf(), center);
-    source[_innerKey] = model.inner;
-    source[_outerKey] = model.outer;
-    source.set(_ellipseKey, model.ellipse);
-    source.set(_chisqKey, model.chisq);
-    source.set(_integralKey, model.asMultiShapelet().evaluate().integrate());
-    source.set(_flagMaxIterKey, model.failedMaxIter);
-    source.set(_flagTinyStepKey, model.failedTinyStep);
-    source.set(_flagMinRadiusKey, model.failedMinRadius);
-    source.set(_flagMinAxisRatioKey, model.failedMinAxisRatio);
-    source.set(_flagKey, model.failedMaxIter || model.failedTinyStep 
-               || model.failedMinAxisRatio || model.failedMinRadius);
+    apply(source, *exposure.getPsf(), center);
 }
 
 PTR(algorithms::AlgorithmControl) FitPsfControl::_clone() const {
