@@ -1,5 +1,5 @@
-setupRequired(meas_algorithms >= 5.0.1.0)
-setupRequired(afw >= 5.0.1.0)
+setupRequired(meas_algorithms)
+setupRequired(afw)
 setupRequired(shapelet)
 
 setupOptional(scipy)  # only needed for examples/sersicApprox.y
