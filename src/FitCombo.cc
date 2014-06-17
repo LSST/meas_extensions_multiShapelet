@@ -98,14 +98,14 @@ FitComboAlgorithm::FitComboAlgorithm(
     algorithms::AlgorithmMap::const_iterator i = others.find(ctrl.psfName);
     if (i == others.end()) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
+            pex::exceptions::LogicError,
             (boost::format("FitPsf with name '%s' not found; needed by FitCombo.") % ctrl.psfName).str()
         );
     }
     _psfCtrl = boost::dynamic_pointer_cast<FitPsfControl const>(i->second->getControl().clone());
     if (!_psfCtrl) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
+            pex::exceptions::LogicError,
             (boost::format("Algorithm with name '%s' is not FitPsf.") % ctrl.psfName).str()
         );
     }
@@ -117,7 +117,7 @@ FitComboAlgorithm::FitComboAlgorithm(
         algorithms::AlgorithmMap::const_iterator i = others.find(*nameIter);
         if (i == others.end()) {
             throw LSST_EXCEPT(
-                pex::exceptions::LogicErrorException,
+                pex::exceptions::LogicError,
                 (boost::format("FitProfile with name '%s' not found; needed by FitCombo.")
                  % (*nameIter)).str()
             );
@@ -127,7 +127,7 @@ FitComboAlgorithm::FitComboAlgorithm(
         );
         if (!_componentCtrl.back()) {
             throw LSST_EXCEPT(
-                pex::exceptions::LogicErrorException,
+                pex::exceptions::LogicError,
                 (boost::format("Algorithm with name '%s' is not FitProfile.") % (*nameIter)).str()
             );
         }
@@ -168,7 +168,7 @@ FitComboModel FitComboAlgorithm::apply(
 ) {
     if (components.size() != 2u) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException, "Only 2-component combo model is current implemented"
+            pex::exceptions::LogicError, "Only 2-component combo model is current implemented"
         );
     }
     FitComboModel model(ctrl);
@@ -198,7 +198,7 @@ FitComboModel FitComboAlgorithm::apply(
     afw::math::LeastSquares lstsq = afw::math::LeastSquares::fromDesignMatrix(matrix, inputs.getData());
     if (lstsq.getSolution()[0] < 0.0) {
         if (lstsq.getSolution()[1] < 0.0) {
-            throw LSST_EXCEPT(pex::exceptions::RuntimeErrorException, "measured negative flux");
+            throw LSST_EXCEPT(pex::exceptions::RuntimeError, "measured negative flux");
         }
         model.components[0] = 0.0;
         model.components[1] = 1.0;
@@ -239,7 +239,7 @@ void FitComboAlgorithm::_apply(
     source.set(_fluxKeys.flag, true);
     if (!exposure.hasPsf()) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
+            pex::exceptions::LogicError,
             "Cannot run FitComboAlgorithm without a PSF."
         );
     }

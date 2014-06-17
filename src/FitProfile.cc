@@ -189,14 +189,14 @@ FitProfileAlgorithm::FitProfileAlgorithm(
     algorithms::AlgorithmMap::const_iterator i = others.find(ctrl.psfName);
     if (i == others.end()) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
+            pex::exceptions::LogicError,
             (boost::format("FitPsf with name '%s' not found; needed by FitProfile.") % ctrl.psfName).str()
         );
     }
     _psfCtrl = boost::dynamic_pointer_cast<FitPsfControl const>(i->second->getControl().clone());
     if (!_psfCtrl) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
+            pex::exceptions::LogicError,
             (boost::format("Algorithm with name '%s' is not FitPsf.") % ctrl.psfName).str()
         );
     }
@@ -248,7 +248,7 @@ ModelInputHandler FitProfileAlgorithm::adjustInputs(
                 ellipse = ctrl.getMultiGaussian().deconvolve(
                     shape, psfModel.ellipse, psfModel.getMultiGaussian()
                 );
-            } catch (pex::exceptions::InvalidParameterException &) {
+            } catch (pex::exceptions::InvalidParameterError &) {
                 ellipse = psfModel.ellipse;
                 ellipse.scale(ctrl.minInitialRadius);
             }
@@ -341,14 +341,14 @@ void FitProfileAlgorithm::_apply(
     source.set(_fluxKeys.flag, true);
     if (!exposure.hasPsf()) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
+            pex::exceptions::LogicError,
             "Cannot run FitProfileAlgorithm without a PSF."
         );
     }
     FitPsfModel psfModel(*_psfCtrl, source);
     if (psfModel.hasFailed() || !(psfModel.ellipse.getArea() > 0.0)) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "PSF shapelet fit failed; cannot fit galaxy model."
         );
     }

@@ -37,7 +37,7 @@ int computeOrder(int size2d) {
         if (s == size2d) return o;
     }
     throw LSST_EXCEPT(
-        pex::exceptions::LogicErrorException,
+        pex::exceptions::LogicError,
         (boost::format("%d is not a valid shapelet vector size") % size2d).str()
     );
 }
@@ -337,7 +337,7 @@ void FitPsfAlgorithm::_apply(
     source.set(_flagKey, true);
     if (!exposure.hasPsf()) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
+            pex::exceptions::LogicError,
             "Cannot run FitPsfAlgorithm without a PSF."
         );
     }

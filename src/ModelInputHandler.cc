@@ -68,7 +68,7 @@ PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
 
     if (!(bbox.getArea() > 0) || !(imageBox.contains(bbox))) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Invalid bounding box in model fit"
         );
     }
@@ -84,7 +84,7 @@ PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
     );
     if (fpSet.getFootprints()->size() != 1u) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             "Ellipse-based footprints do not all overlap detection footprint."
         );
     }
@@ -102,7 +102,7 @@ ModelInputHandler::ModelInputHandler(
     _footprint->clipTo(image.getBBox(afw::image::PARENT));
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Model fit contains no usable pixels."
         );
     }
@@ -124,7 +124,7 @@ ModelInputHandler::ModelInputHandler(
     _footprint->clipTo(image.getBBox(afw::image::PARENT));
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Model fit contains no usable pixels."
         );
     }
@@ -148,7 +148,7 @@ ModelInputHandler::ModelInputHandler(
     _footprint->clipTo(image.getBBox(afw::image::PARENT));
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Model fit contains no usable pixels."
         );
     }
@@ -168,13 +168,13 @@ ModelInputHandler::ModelInputHandler(
     _footprint->intersectMask(*image.getMask(), badPixelMask);
     if ((1.0 - _footprint->getArea() / originalArea) > maxBadPixelFraction) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Too many masked pixels."
         );
     } 
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Model fit contains no usable pixels."
         );
     }
@@ -207,13 +207,13 @@ ModelInputHandler::ModelInputHandler(
     _footprint->intersectMask(*image.getMask(), badPixelMask);
     if ((1.0 - _footprint->getArea() / originalArea) > maxBadPixelFraction) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Too many masked pixels."
         );
     } 
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Model fit contains no usable pixels."
         );
     }
@@ -247,13 +247,13 @@ ModelInputHandler::ModelInputHandler(
     _footprint->intersectMask(*image.getMask(), badPixelMask);
     if ((1.0 - _footprint->getArea() / originalArea) > maxBadPixelFraction) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Too many masked pixels."
         );
     } 
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
-            pex::exceptions::RuntimeErrorException,
+            pex::exceptions::RuntimeError,
             "Model fit contains no usable pixels."
         );
     }

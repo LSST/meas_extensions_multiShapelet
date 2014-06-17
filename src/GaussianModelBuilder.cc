@@ -49,7 +49,7 @@ GaussianModelBuilder::GaussianModelBuilder(
 {
     if (_x.size() != _y.size()) {
         throw LSST_EXCEPT(
-            pex::exceptions::LengthErrorException,
+            pex::exceptions::LengthError,
             (boost::format("x coordinate array size (%d) does not match y coordinate array size (%d)")
              % _x.size() % _y.size()).str()
         );
@@ -115,13 +115,13 @@ void GaussianModelBuilder::computeDerivative(
 ) {
     if (_model.isEmpty()) {
         throw LSST_EXCEPT(
-            pex::exceptions::LogicErrorException,
+            pex::exceptions::LogicError,
             "computeDerivative called before computeModel"
         );
     }
     if (output.getSize<0>() != _x.size()) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             (boost::format("Incorrect number of rows for array: got %d, expected %d")
              % output.getSize<0>() % _x.size()).str()
         );
@@ -140,7 +140,7 @@ void GaussianModelBuilder::computeDerivative(
 void GaussianModelBuilder::setOutput(ndarray::Array<double,1,1> const & array) {
     if (array.getSize<0>() != _x.size()) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             (boost::format("Incorrect size for array: got %d, expected %d")
              % array.getSize<0>() % _x.size()).str()
         );
