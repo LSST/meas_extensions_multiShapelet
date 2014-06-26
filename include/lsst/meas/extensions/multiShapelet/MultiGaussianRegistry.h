@@ -42,7 +42,7 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 class MultiGaussianRegistry {
 public:
 
-    /// @brief Retrieve the MultiGaussian with the given name or throw NotFoundException.
+    /// @brief Retrieve the MultiGaussian with the given name or throw NotFoundError.
     static MultiGaussian const & lookup(std::string const & name);
 
     /// @brief Insert a new MultiGaussian (replaces if name is already present).

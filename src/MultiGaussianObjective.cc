@@ -37,13 +37,13 @@ MultiGaussianObjective::MultiGaussianObjective(
 {
     if (_minRadius <= 0.0) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             "Minimum radius must be = 0"
         );
     }
     if (_minAxisRatio < 0.0 || _minAxisRatio > 1.0) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             "Minimum axis ratio must be between 0 and 1"
         );
     }
@@ -72,13 +72,13 @@ MultiGaussianObjective::MultiGaussianObjective(
 {
     if (_minRadius <= 0.0) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             "Minimum radius must be > 0"
         );
     }
     if (_minAxisRatio < 0.0 || _minAxisRatio > 1.0) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             "Minimum axis ratio must be between 0 and 1"
         );
     }
@@ -178,13 +178,13 @@ std::pair<bool,bool>
 MultiGaussianObjective::constrainEllipse(EllipseCore & ellipse, double minRadius, double minAxisRatio) {
     if (minRadius <= 0.0) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             "Minimum radius must be > 0"
         );
     }
     if (minAxisRatio < 0.0 || minAxisRatio > 1.0) {
         throw LSST_EXCEPT(
-            pex::exceptions::InvalidParameterException,
+            pex::exceptions::InvalidParameterError,
             "Minimum axis ratio must be between 0 and 1"
         );
     }

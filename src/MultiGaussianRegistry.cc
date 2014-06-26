@@ -57,7 +57,7 @@ MultiGaussian const & MultiGaussianRegistry::lookup(std::string const & name) {
     RegistryList::iterator i = std::find_if(l.begin(), l.end(), CompareRegistryItem(name));
     if (i == l.end()) {
         throw LSST_EXCEPT(
-            pex::exceptions::NotFoundException,
+            pex::exceptions::NotFoundError,
             (boost::format("MultiGaussian with name '%s' not found in registry.") % name).str()
         );
     }
@@ -86,7 +86,7 @@ void MultiGaussianRegistry::insert(
 ) {
     if (fluxes.getSize<0>() != radii.getSize<0>()) {
         throw LSST_EXCEPT(
-            pex::exceptions::LengthErrorException,
+            pex::exceptions::LengthError,
             (boost::format("flux array size (%d) does not match radius array size (%d)") %
              fluxes.getSize<0>() % radii.getSize<0>()).str()
         );
