@@ -38,7 +38,6 @@ import numpy
 import lsst.utils.tests as utilsTests
 import lsst.pex.exceptions
 import lsst.afw.geom as geom
-import lsst.afw.geom.ellipses as ellipses
 import lsst.afw.image
 import lsst.afw.detection
 import lsst.meas.extensions.multiShapelet as ms
@@ -58,7 +57,7 @@ class FitPsfTestCase(unittest.TestCase):
         ctrl = ms.FitPsfControl()
         image = lsst.afw.image.ImageD(5, 5)
         nParameters = 3
-        nData = image.getBBox().getArea()
+        nData = image.getBBox(lsst.afw.image.PARENT).getArea()
         nTests = 10
         center = geom.Point2D(2.0, 2.0)
         xGrid, yGrid = numpy.meshgrid(numpy.arange(-2, 3), numpy.arange(-2, 3))
