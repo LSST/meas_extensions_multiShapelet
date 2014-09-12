@@ -303,7 +303,7 @@ FitPsfModel FitPsfAlgorithm::apply(
     PTR(afw::image::Image<afw::math::Kernel::Pixel>) image = psf.computeImage(center);
     double s = image->getArray().asEigen().sum();
     image->getArray().asEigen() /= s;
-    ModelInputHandler inputs(*image, center, image->getBBox(afw::image::PARENT));
+    ModelInputHandler inputs(*image, center, image->getBBox());
     return apply(ctrl, inputs);
 }
 

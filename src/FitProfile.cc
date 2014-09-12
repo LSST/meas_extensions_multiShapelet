@@ -376,7 +376,7 @@ void FitProfileAlgorithm::_apply(
 
     source.set(_fluxCorrectionKeys.psfFactorFlag, true);
     PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = exposure.getPsf()->computeImage(center);
-    ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
+    ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox());
     MultiGaussianObjective::EllipseCore psfEllipse(psfModel.ellipse);
     psfEllipse.scale(getControl().minInitialRadius);
     FitProfileModel psfProfileModel = apply(getControl(), psfModel, psfEllipse, psfInputs);
