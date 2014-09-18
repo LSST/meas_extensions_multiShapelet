@@ -181,8 +181,8 @@ FitComboModel FitComboAlgorithm::apply(
             .convolve(psfModel.asMultiShapelet());
         msf.normalize();
         for (
-            MSF::ElementList::const_iterator i = msf.getElements().begin();
-            i != msf.getElements().end();
+            MSF::ComponentList::const_iterator i = msf.getComponents().begin();
+            i != msf.getComponents().end();
             ++i
         ) {
             shapelet::MatrixBuilder<double> builder(inputs.getX(), inputs.getY(), i->getOrder());

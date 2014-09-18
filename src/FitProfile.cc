@@ -118,14 +118,14 @@ FitProfileModel & FitProfileModel::operator=(FitProfileModel const & other) {
 shapelet::MultiShapeletFunction FitProfileModel::asMultiShapelet(
     afw::geom::Point2D const & center
 ) const {
-    shapelet::MultiShapeletFunction::ElementList elements;
+    shapelet::MultiShapeletFunction::ComponentList components;
     MultiGaussian const & multiGaussian = MultiGaussianRegistry::lookup(profile);
     for (MultiGaussian::const_iterator i = multiGaussian.begin(); i != multiGaussian.end(); ++i) {
         afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
-        elements.push_back(i->makeShapelet(fullEllipse));
-        elements.back().getCoefficients().asEigen() *= flux;
+        components.push_back(i->makeShapelet(fullEllipse));
+        components.back().getCoefficients().asEigen() *= flux;
     }
-    return shapelet::MultiShapeletFunction(elements);
+    return shapelet::MultiShapeletFunction(components);
 }
 
 //------------ FitProfileAlgorithm --------------------------------------------------------------------------
@@ -289,7 +289,7 @@ void FitProfileAlgorithm::fitShapeletTerms(
     msf.normalize();
     ndarray::Array<double,1,1> vector = ndarray::allocate(inputs.getSize());
     vector.deep() = 0.0;
-    for (MSF::ElementList::const_iterator i = msf.getElements().begin(); i != msf.getElements().end(); ++i) {
+    for (MSF::ComponentList::const_iterator i = msf.getComponents().begin(); i != msf.getComponents().end(); ++i) {
         shapelet::MatrixBuilder<double> builder(inputs.getX(), inputs.getY(), i->getOrder());
         ndarray::Array<double,2,-2> matrix = builder(i->getEllipse());
         vector.asEigen() = matrix.asEigen() * i->getCoefficients().asEigen();

@@ -166,7 +166,7 @@ class FitProfileViewer(ViewerBase):
         if optFunc is None:
             optFunc = numpy.zeros(self.inputs.getSize(), dtype=float)
             smb = lsst.shapelet.ModelBuilder(self.inputs.getX(), self.inputs.getY())
-            for elem in msf.getElements():
+            for elem in msf.getComponents():
                 smb.update(elem.getEllipse().getCore())
                 smb.addModelVector(elem.getOrder(), elem.getCoefficients(), optFunc)
             optFunc *= self.inputs.getWeights()

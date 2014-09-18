@@ -141,9 +141,9 @@ MultiGaussian FitPsfModel::getMultiGaussian() const {
 shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
     afw::geom::Point2D const & center
 ) const {
-    shapelet::MultiShapeletFunction::ElementList elements;
+    shapelet::MultiShapeletFunction::ComponentList components;
     afw::geom::ellipses::Ellipse fullEllipse(ellipse, center);
-    elements.push_back(
+    components.push_back(
         shapelet::ShapeletFunction(
             computeOrder(inner.getSize<0>()),
             shapelet::HERMITE,
@@ -152,7 +152,7 @@ shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
         )
     );
     fullEllipse.scale(radiusRatio);
-    elements.push_back(
+    components.push_back(
         shapelet::ShapeletFunction(
             computeOrder(outer.getSize<0>()),
             shapelet::HERMITE,
@@ -160,7 +160,7 @@ shapelet::MultiShapeletFunction FitPsfModel::asMultiShapelet(
             outer
         )
     );
-    return shapelet::MultiShapeletFunction(elements);
+    return shapelet::MultiShapeletFunction(components);
 }
 
 FitPsfAlgorithm::FitPsfAlgorithm(FitPsfControl const & ctrl, afw::table::Schema & schema) :
