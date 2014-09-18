@@ -23,7 +23,7 @@
 
 #include "lsst/meas/extensions/multiShapelet/FitPsf.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
-#include "lsst/shapelet/ModelBuilder.h"
+#include "lsst/shapelet/MatrixBuilder.h"
 #include "lsst/afw/math/LeastSquares.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
@@ -250,15 +250,14 @@ void FitPsfAlgorithm::fitShapeletTerms(
 ) {
     int innerCoeffs = shapelet::computeSize(ctrl.innerOrder);
     int outerCoeffs = shapelet::computeSize(ctrl.outerOrder);
+    shapelet::MatrixBuilder<double> innerBuilder(inputs.getX(), inputs.getY(), ctrl.innerOrder);
+    shapelet::MatrixBuilder<double> outerBuilder(inputs.getX(), inputs.getY(), ctrl.outerOrder);
     ndarray::Array<double,2,-2> matrix = ndarray::allocate(inputs.getSize(), innerCoeffs + outerCoeffs);
     matrix.asEigen().setZero();
-    shapelet::ModelBuilder<double> builder(inputs.getX(), inputs.getY(), ctrl.useApproximateExp);
-    builder.update(model.ellipse);
-    builder.addModelMatrix(ctrl.innerOrder, matrix[ndarray::view()(0, innerCoeffs)]);
-    model.ellipse.scale(ctrl.radiusRatio);
-    builder.update(model.ellipse);
-    model.ellipse.scale(1.0 / ctrl.radiusRatio);
-    builder.addModelMatrix(ctrl.outerOrder, matrix[ndarray::view()(innerCoeffs, innerCoeffs + outerCoeffs)]);
+    afw::geom::ellipses::Ellipse tmpEllipse(model.ellipse);
+    innerBuilder(matrix[ndarray::view()(0, innerCoeffs)], tmpEllipse);
+    tmpEllipse.scale(ctrl.radiusRatio);
+    innerBuilder(matrix[ndarray::view()(innerCoeffs, innerCoeffs + outerCoeffs)], tmpEllipse);
     if (!inputs.getWeights().isEmpty()) {
         matrix.asEigen<Eigen::ArrayXpr>() 
             *= (inputs.getWeights().asEigen() * Eigen::RowVectorXd::Ones(matrix.getSize<1>())).array();

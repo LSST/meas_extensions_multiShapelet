@@ -25,7 +25,7 @@
 #include "lsst/meas/extensions/multiShapelet/FitProfile.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianObjective.h"
 #include "lsst/meas/extensions/multiShapelet/MultiGaussianRegistry.h"
-#include "lsst/shapelet/ModelBuilder.h"
+#include "lsst/shapelet/MatrixBuilder.h"
 #include "lsst/afw/math/LeastSquares.h"
 #include "lsst/afw/detection/FootprintArray.h"
 #include "lsst/afw/detection/FootprintArray.cc"
@@ -289,10 +289,10 @@ void FitProfileAlgorithm::fitShapeletTerms(
     msf.normalize();
     ndarray::Array<double,1,1> vector = ndarray::allocate(inputs.getSize());
     vector.deep() = 0.0;
-    shapelet::ModelBuilder<double> builder(inputs.getX(), inputs.getY(), ctrl.useApproximateExp);
     for (MSF::ElementList::const_iterator i = msf.getElements().begin(); i != msf.getElements().end(); ++i) {
-        builder.update(i->getEllipse().getCore());
-        builder.addModelVector(i->getOrder(), i->getCoefficients(), vector);
+        shapelet::MatrixBuilder<double> builder(inputs.getX(), inputs.getY(), i->getOrder());
+        ndarray::Array<double,2,-2> matrix = builder(i->getEllipse());
+        vector.asEigen() = matrix.asEigen() * i->getCoefficients().asEigen();
     }
     if (!inputs.getWeights().isEmpty()) {
         vector.asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
