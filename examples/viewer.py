@@ -34,7 +34,7 @@ class ViewerBase(object):
 
     @staticmethod
     def _plotImage(image, title=None, ellipses=(), vmin=None, vmax=None):
-        bbox = image.getBBox(lsst.afw.image.PARENT)
+        bbox = image.getBBox()
         array = image.getArray()
         if vmin is None or vmax is None:
             valid = array[numpy.isfinite(array)]
@@ -67,7 +67,7 @@ class FitPsfViewer(ViewerBase):
         self.center = source.getCentroid()
         self.image = psf.computeImage(self.center)
         self.image.getArray()[:,:] /= self.image.getArray().sum()
-        self.inputs = ms.ModelInputHandler(self.image, self.center, self.image.getBBox(lsst.afw.image.PARENT))
+        self.inputs = ms.ModelInputHandler(self.image, self.center, self.image.getBBox())
         opt = self.Algorithm.makeOptimizer(self.ctrl, self.inputs)
         maxIter = opt.getControl().maxIter
         self.iterations = [self.Iteration(opt, self)]
@@ -89,7 +89,7 @@ class FitPsfViewer(ViewerBase):
         elif not isinstance(model, self.Model):
             model = self.iterations[model].model
         data = self.image
-        fit = lsst.afw.image.ImageD(data.getBBox(lsst.afw.image.PARENT))
+        fit = lsst.afw.image.ImageD(data.getBBox())
         func = model.asMultiShapelet(self.center)
         func.evaluate().addToImage(fit)
         residuals = lsst.afw.image.ImageD(data, True)
@@ -132,7 +132,6 @@ class FitProfileViewer(ViewerBase):
         self.saved = self.Model(self.ctrl, source)
         self.center = source.getCentroid()
         self.shape = source.getShape()
-        badPixelMask = lsst.afw.image.MaskU.getPlaneBitMask(self.ctrl.badMaskPlanes)
         self.inputs = self.Algorithm.adjustInputs(
             self.ctrl, self.psfModel, self.shape, source.getFootprint(), exposure, self.center
             )

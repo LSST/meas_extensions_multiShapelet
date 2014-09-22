@@ -57,13 +57,13 @@ class FitPsfTestCase(unittest.TestCase):
         ctrl = ms.FitPsfControl()
         image = lsst.afw.image.ImageD(5, 5)
         nParameters = 3
-        nData = image.getBBox(lsst.afw.image.PARENT).getArea()
+        nData = image.getBBox().getArea()
         nTests = 10
         center = geom.Point2D(2.0, 2.0)
         xGrid, yGrid = numpy.meshgrid(numpy.arange(-2, 3), numpy.arange(-2, 3))
         image.getArray()[:,:] = 1.0 * numpy.exp(-0.5*(xGrid**2 + yGrid**2))
         image.getArray()[:,:] += numpy.random.randn(5, 5) * 0.1
-        inputs = ms.ModelInputHandler(image, center, image.getBBox(lsst.afw.image.PARENT))
+        inputs = ms.ModelInputHandler(image, center, image.getBBox())
         obj = ms.FitPsfAlgorithm.makeObjective(ctrl, inputs)
         parameters = numpy.random.rand(nTests, nParameters) * 0.5
         for i in range(nTests):

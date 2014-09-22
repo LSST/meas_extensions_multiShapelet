@@ -264,7 +264,7 @@ void FitComboAlgorithm::_apply(
 
     source.set(_fluxCorrectionKeys.psfFactorFlag, true);
     PTR(afw::image::Image<afw::math::Kernel::Pixel>) psfImage = exposure.getPsf()->computeImage(center);
-    ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox(afw::image::PARENT));
+    ModelInputHandler psfInputs(*psfImage, center, psfImage->getBBox());
     std::vector<FitProfileModel> psfComponents;
     for (std::size_t n = 0; n < _componentCtrl.size(); ++n) {
         psfComponents.push_back(FitProfileModel(*_componentCtrl[n], source, true));

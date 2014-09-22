@@ -73,10 +73,10 @@ PTR(afw::detection::Footprint) mergeFootprintWithEllipses(
         );
     }
     afw::image::Mask<> mask(bbox);
-    assert(mask.getBBox(afw::image::PARENT).contains(footprint.getBBox()));
+    assert(mask.getBBox().contains(footprint.getBBox()));
     afw::detection::setMaskFromFootprint(&mask, footprint, afw::image::MaskPixel(0x1));
     for (std::size_t n = 0; n < ellipses.size(); ++n) {
-        assert(mask.getBBox(afw::image::PARENT).contains(ellipseFootprints[n]->getBBox()));
+        assert(mask.getBBox().contains(ellipseFootprints[n]->getBBox()));
         afw::detection::setMaskFromFootprint(&mask, *ellipseFootprints[n], afw::image::MaskPixel(0x1));
     }
     afw::detection::FootprintSet fpSet(
@@ -99,7 +99,7 @@ ModelInputHandler::ModelInputHandler(
     afw::geom::Box2I const & region
 ) {
     _footprint = boost::make_shared<afw::detection::Footprint>(region);
-    _footprint->clipTo(image.getBBox(afw::image::PARENT));
+    _footprint->clipTo(image.getBBox());
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
             pex::exceptions::RuntimeError,
@@ -121,7 +121,7 @@ ModelInputHandler::ModelInputHandler(
     } else {
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    _footprint->clipTo(image.getBBox(afw::image::PARENT));
+    _footprint->clipTo(image.getBBox());
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
             pex::exceptions::RuntimeError,
@@ -144,8 +144,8 @@ ModelInputHandler::ModelInputHandler(
     } else {
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses, image.getBBox(afw::image::PARENT));
-    _footprint->clipTo(image.getBBox(afw::image::PARENT));
+    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses, image.getBBox());
+    _footprint->clipTo(image.getBBox());
     if (_footprint->getArea() <= 0) {
         throw LSST_EXCEPT(
             pex::exceptions::RuntimeError,
@@ -242,7 +242,7 @@ ModelInputHandler::ModelInputHandler(
     } else {
         _footprint = boost::make_shared<afw::detection::Footprint>(region);
     }
-    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses, image.getBBox(afw::image::PARENT));
+    _footprint = mergeFootprintWithEllipses(*_footprint, ellipses, image.getBBox());
     double originalArea = _footprint->getArea();
     _footprint->intersectMask(*image.getMask(), badPixelMask);
     if ((1.0 - _footprint->getArea() / originalArea) > maxBadPixelFraction) {
