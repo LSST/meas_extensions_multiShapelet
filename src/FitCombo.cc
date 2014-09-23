@@ -23,7 +23,7 @@
 
 #include "lsst/utils/ieee.h"
 #include "lsst/meas/extensions/multiShapelet/FitCombo.h"
-#include "lsst/shapelet/ModelBuilder.h"
+#include "lsst/shapelet/MatrixBuilder.h"
 #include "lsst/afw/math/LeastSquares.h"
 #include "lsst/afw/detection/FootprintArray.h"
 #include "lsst/afw/detection/FootprintArray.cc"
@@ -173,7 +173,6 @@ FitComboModel FitComboAlgorithm::apply(
     }
     FitComboModel model(ctrl);
     typedef shapelet::MultiShapeletFunction MSF;
-    shapelet::ModelBuilder<double> builder(inputs.getX(), inputs.getY(), ctrl.useApproximateExp);
     ndarray::Array<double,2,2> matrixT = ndarray::allocate(components.size(), inputs.getSize());
     ndarray::Array<double,2,-2> matrix(matrixT.transpose());
     matrixT.deep() = 0.0;
@@ -182,12 +181,13 @@ FitComboModel FitComboAlgorithm::apply(
             .convolve(psfModel.asMultiShapelet());
         msf.normalize();
         for (
-            MSF::ElementList::const_iterator i = msf.getElements().begin();
-            i != msf.getElements().end();
+            MSF::ComponentList::const_iterator i = msf.getComponents().begin();
+            i != msf.getComponents().end();
             ++i
         ) {
-            builder.update(i->getEllipse().getCore());
-            builder.addModelVector(i->getOrder(), i->getCoefficients(), matrixT[n]);
+            shapelet::MatrixBuilder<double> builder(inputs.getX(), inputs.getY(), i->getOrder());
+            ndarray::Array<double,2,-2> m = builder(i->getEllipse());
+            matrixT[n].asEigen() = m.asEigen() * i->getCoefficients().asEigen();
         }
         if (!inputs.getWeights().isEmpty()) {
             matrixT[n].asEigen<Eigen::ArrayXpr>() *= inputs.getWeights().asEigen<Eigen::ArrayXpr>();
