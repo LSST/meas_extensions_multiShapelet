@@ -21,18 +21,15 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
-#include "lsst/utils/PowFast.h"
 #include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
 
 namespace {
 
-utils::PowFast const & powFast = utils::getPowFast<11>();
-
-struct PowFastExpFunctor {
+struct ExpFunctor {
     inline float operator()(float x) const {
-        return powFast.exp(x);
+        return std::exp(x);
     }
 };
 
@@ -102,7 +99,7 @@ void GaussianModelBuilder::update(afw::geom::ellipses::BaseCore const & core) {
     dNorm_dq[2] = q.getIxy() / det;
     _dNorm = dNorm_dq * quadJacobian;
     if (_useApproximateExp) {
-        z.array() = (-0.5 * z.array()).unaryExpr(PowFastExpFunctor());
+        z.array() = (-0.5 * z.array()).unaryExpr(ExpFunctor());
     } else {
         z.array() = (-0.5 * z.array()).exp();
     }
