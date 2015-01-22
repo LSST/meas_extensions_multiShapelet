@@ -52,7 +52,6 @@ public:
                        " when shapelets coefficients are fit and ellipses are held fixed."
     );
     LSST_CONTROL_FIELD(initialRadius, double, "Initial radius of inner component in pixels");
-    LSST_CONTROL_FIELD(useApproximateExp, bool, "Use fast approximate exponential (good to ~1E-4)");
 
     PTR(FitPsfControl) clone() const { return boost::static_pointer_cast<FitPsfControl>(_clone()); }
 
@@ -67,7 +66,7 @@ public:
     FitPsfControl() :
         algorithms::AlgorithmControl("multishapelet.psf", 2.0),
         innerOrder(2), outerOrder(2), minRadius(0.1), minAxisRatio(0.1),
-        radiusRatio(2.0), peakRatio(0.1), initialRadius(1.5), useApproximateExp(false)
+        radiusRatio(2.0), peakRatio(0.1), initialRadius(1.5)
     {}
 
 private:

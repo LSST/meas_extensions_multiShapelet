@@ -54,7 +54,6 @@ public:
     LSST_CONTROL_FIELD(growFootprint, int, "Number of pixels to grow the footprint by.");
     LSST_CONTROL_FIELD(radiusInputFactor, double,
                        "Number of half-light radii used to determine the pixels to fit");
-    LSST_CONTROL_FIELD(useApproximateExp, bool, "Use fast approximate exponential (good to ~1E-4)");
 
     PTR(FitProfileControl) clone() const {
         return boost::static_pointer_cast<FitProfileControl>(_clone());
@@ -74,7 +73,7 @@ public:
         minRadius(0.0001), minAxisRatio(0.0001),
         deconvolveShape(true), minInitialRadius(0.5),
         usePixelWeights(false), badMaskPlanes(), maxBadPixelFraction(0.1),
-        growFootprint(5), radiusInputFactor(4.0), useApproximateExp(false)
+        growFootprint(5), radiusInputFactor(4.0)
     {
         badMaskPlanes.push_back("BAD");
         badMaskPlanes.push_back("SAT");
