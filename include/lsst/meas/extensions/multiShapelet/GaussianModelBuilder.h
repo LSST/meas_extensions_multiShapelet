@@ -39,7 +39,7 @@ public:
         ndarray::Array<double const,1,1> const & y,
         double flux=1.0, double radius=1.0,
         afw::geom::ellipses::Quadrupole const & psfEllipse = afw::geom::ellipses::Quadrupole(0.0, 0.0, 0.0),
-        double psfAmplitude=1.0, bool useApproximateExp=false
+        double psfAmplitude=1.0
     );
     
     GaussianModelBuilder(GaussianModelBuilder const & other);
@@ -61,7 +61,6 @@ public:
 
 private:
     
-    bool _useApproximateExp;
     double _flux;
     double _psfAmplitude;
     afw::geom::LinearTransform _scaling;

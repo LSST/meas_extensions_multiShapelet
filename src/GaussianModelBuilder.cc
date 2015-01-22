@@ -21,30 +21,17 @@
  * see <http://www.lsstcorp.org/LegalNotices/>.
  */
 
-#include "lsst/utils/PowFast.h"
 #include "lsst/meas/extensions/multiShapelet/GaussianModelBuilder.h"
 
 namespace lsst { namespace meas { namespace extensions { namespace multiShapelet {
-
-namespace {
-
-utils::PowFast const & powFast = utils::getPowFast<11>();
-
-struct PowFastExpFunctor {
-    inline float operator()(float x) const {
-        return powFast.exp(x);
-    }
-};
-
-} // anonymous
 
 GaussianModelBuilder::GaussianModelBuilder(
     ndarray::Array<double const,1,1> const & x,
     ndarray::Array<double const,1,1> const & y,
     double flux, double radius, afw::geom::ellipses::Quadrupole const & psfEllipse,
-    double psfAmplitude, bool useApproximateExp
-) : _useApproximateExp(useApproximateExp), _flux(flux), _psfAmplitude(psfAmplitude), 
-    _scaling(afw::geom::LinearTransform::makeScaling(radius)), _psfEllipse(psfEllipse), 
+    double psfAmplitude
+) : _flux(flux), _psfAmplitude(psfAmplitude),
+    _scaling(afw::geom::LinearTransform::makeScaling(radius)), _psfEllipse(psfEllipse),
     _x(x), _y(y), _rx(x.size()), _ry(y.size())
 {
     if (_x.size() != _y.size()) {
@@ -57,7 +44,7 @@ GaussianModelBuilder::GaussianModelBuilder(
 }
 
 GaussianModelBuilder::GaussianModelBuilder(GaussianModelBuilder const & other) :
-    _useApproximateExp(other._useApproximateExp), _flux(other._flux), _psfAmplitude(other._psfAmplitude),
+    _flux(other._flux), _psfAmplitude(other._psfAmplitude),
     _scaling(other._scaling), _psfEllipse(other._psfEllipse),
     _esn(other._esn), _esnJacobian(other._esnJacobian), _dNorm(other._dNorm),
     _x(other._x), _y(other._y), _rx(other._rx), _ry(other._ry)
@@ -65,7 +52,6 @@ GaussianModelBuilder::GaussianModelBuilder(GaussianModelBuilder const & other) :
 
 GaussianModelBuilder & GaussianModelBuilder::operator=(GaussianModelBuilder const & other) {
     if (&other != this) {
-        _useApproximateExp = other._useApproximateExp;
         _flux = other._flux;
         _psfAmplitude = other._psfAmplitude;
         _scaling = other._scaling;
@@ -101,11 +87,7 @@ void GaussianModelBuilder::update(afw::geom::ellipses::BaseCore const & core) {
     dNorm_dq[1] = -0.5 * q.getIxx() / det;
     dNorm_dq[2] = q.getIxy() / det;
     _dNorm = dNorm_dq * quadJacobian;
-    if (_useApproximateExp) {
-        z.array() = (-0.5 * z.array()).unaryExpr(PowFastExpFunctor());
-    } else {
-        z.array() = (-0.5 * z.array()).exp();
-    }
+    z.array() = (-0.5 * z.array()).exp();
     z.array() *= (_flux * _psfAmplitude) / (std::sqrt(det) * afw::geom::PI * 2.0);
 }
 

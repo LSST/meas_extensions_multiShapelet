@@ -209,7 +209,7 @@ PTR(MultiGaussianObjective) FitProfileAlgorithm::makeObjective(
 ) {
     return boost::make_shared<MultiGaussianObjective>(
         inputs, ctrl.getMultiGaussian(), psfModel.getMultiGaussian(), psfModel.ellipse,
-        ctrl.minRadius, ctrl.minAxisRatio, ctrl.useApproximateExp
+        ctrl.minRadius, ctrl.minAxisRatio
     );
 }
 

@@ -29,8 +29,7 @@ namespace lsst { namespace meas { namespace extensions { namespace multiShapelet
 MultiGaussianObjective::MultiGaussianObjective(
     ModelInputHandler const & inputs,
     MultiGaussian const & multiGaussian,
-    double minRadius, double minAxisRatio,
-    bool useApproximateExp
+    double minRadius, double minAxisRatio
 ) : Objective(inputs.getSize(), 3), _minRadius(minRadius), _minAxisRatio(minAxisRatio), 
     _amplitude(1.0), _modelSquaredNorm(1.0),
     _ellipse(), _inputs(inputs), _model(ndarray::allocate(inputs.getSize()))
@@ -52,8 +51,7 @@ MultiGaussianObjective::MultiGaussianObjective(
         _builders.push_back(
             GaussianModelBuilder(
                 _inputs.getX(), _inputs.getY(), i->flux, i->radius,
-                afw::geom::ellipses::Quadrupole(0.0, 0.0, 0.0), 1.0,
-                useApproximateExp
+                afw::geom::ellipses::Quadrupole(0.0, 0.0, 0.0), 1.0
             )
         );
     }
@@ -64,8 +62,7 @@ MultiGaussianObjective::MultiGaussianObjective(
     MultiGaussian const & multiGaussian,
     MultiGaussian const & psfMultiGaussian,
     afw::geom::ellipses::Quadrupole const & psfEllipse,
-    double minRadius, double minAxisRatio,
-    bool useApproximateExp
+    double minRadius, double minAxisRatio
 ) : Objective(inputs.getSize(), 3), _minRadius(minRadius), _minAxisRatio(minAxisRatio),
     _amplitude(1.0), _modelSquaredNorm(1.0),
     _ellipse(), _inputs(inputs), _model(ndarray::allocate(inputs.getSize()))
@@ -90,8 +87,7 @@ MultiGaussianObjective::MultiGaussianObjective(
             _builders.push_back(
                 GaussianModelBuilder(
                     _inputs.getX(), _inputs.getY(), i->flux, i->radius,
-                    psfComponentEllipse, j->flux,
-                    useApproximateExp
+                    psfComponentEllipse, j->flux
                 )
             );
         }
